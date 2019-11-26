@@ -6,6 +6,7 @@ import (
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/ob6160/Terrain/core"
+	"github.com/ob6160/Terrain/generators"
 	"log"
 	"runtime"
 )
@@ -76,6 +77,11 @@ func main() {
 	textureUniform := gl.GetUniformLocation(program, gl.Str("tex\x00"))
 	gl.Uniform1i(textureUniform, 0)
 
+	
+	midpointGen := generators.NewMidPointDisplacement(128,128)
+	midpointGen.Generate()
+
+	
 	vertices := []float32{
 		0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		0.5, -0.5, 0.0, 0.0, 0.0, 0.0,1.0, 0.0,
