@@ -9,6 +9,7 @@ type Mesh struct {
 	Vertices      []float32
 	Texture       uint32
 	Indices       []uint32
+	stride int32
 	vao, vbo, ebo uint32
 	RenderMode uint32
 }

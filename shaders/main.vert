@@ -9,8 +9,10 @@ layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texcoord;
 
 out vec2 fragTexCoord;
+out float height;
 
 void main() {
     fragTexCoord = texcoord;
-    gl_Position = projection * camera * model * vec4(vert, 1.0);
+    height = vert.y;
+    gl_Position = projection * camera * model * vec4(vec3(vert.x, height*100.0, vert.z), 1.0);
 }
