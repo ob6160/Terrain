@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/go-gl/gl/v4.1-core/gl"
+	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 )
@@ -11,12 +11,16 @@ type Plane struct {
 	m Mesh
 }
 
+func (p *Plane) M() Mesh {
+	return p.m
+}
+
 func NewPlane(rows int, cols int) *Plane {
 	var newPlane = Plane{rows: rows, cols: cols}
 	return &newPlane
 }
 
-func (p *Plane) Construct() *Mesh {
+func (p *Plane) Construct() {
 	vertices := make([]float32, p.rows * p.cols * 8)
 	vertIndex := 0
 
@@ -26,15 +30,15 @@ func (p *Plane) Construct() *Mesh {
 
 	for x := 0; x < p.rows; x++ {
 		for y := 0; y < p.cols; y++ {
-			vertices[vertIndex+0] = float32(y - (p.rows - 1) / 2) * 0.5
+			vertices[vertIndex+0] = float32(y - (p.rows - 1) / 2)
 			vertices[vertIndex+1] = midpointGen.Get(utils.Point{X:x, Y:y})
-			vertices[vertIndex+2] = float32(x - (p.cols - 1) / 2 ) * 0.5
+			vertices[vertIndex+2] = float32(x - (p.cols - 1) / 2)
 			vertIndex += 8
 		}
 	}
 
 	indices := make([]uint32, (p.rows-1) * (p.cols-1) * 3 * 2)
-	var i int = 0
+	var i = 0
 	for r := 0; r < p.rows-1; r++ {
 		for c := 0; c < p.cols-1; c++ {
 			index := r * p.rows + c
@@ -46,7 +50,6 @@ func (p *Plane) Construct() *Mesh {
 			indices[i+4] = uint32(index+p.rows+1)
 			indices[i+5] = uint32(index)
 			i += 6
-			
 		}
 	}
 	
@@ -57,5 +60,4 @@ func (p *Plane) Construct() *Mesh {
 		RenderMode: gl.TRIANGLES,
 	}
 	p.m.Construct()
-	return &p.m
 }
