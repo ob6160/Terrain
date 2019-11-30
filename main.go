@@ -36,7 +36,7 @@ type State struct {
 	Projection mgl32.Mat4
 	Camera mgl32.Mat4
 	Model mgl32.Mat4
-	Angle float32
+	Angle, Height, FOV float32
 	Plane *core.Plane
 }
 
@@ -64,8 +64,6 @@ func setupOpenGl() *glfw.Window {
 	version := gl.GoStr(gl.GetString(gl.VERSION))
 	fmt.Println("OpenGL version", version)
 
-	gl.Enable(gl.DEPTH_TEST)
-
 	return window
 }
 
@@ -75,7 +73,9 @@ func setupUniforms(state *State) {
 	// Uniforms
 	gl.UseProgram(program)
 
-	state.Projection = mgl32.Perspective(mgl32.DegToRad(45.0), float32(windowWidth)/windowHeight, 0.01, 10000.0)
+
+	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
+	//state.Projection = mgl32.Ortho(-state.Scale, state.Scale, -state.Scale, state.Scale, 0.01, 10000.0)
 	projectionUniform := gl.GetUniformLocation(program, gl.Str("projection\x00"))
 	gl.UniformMatrix4fv(projectionUniform, 1, false, &state.Projection[0])
 
@@ -92,7 +92,11 @@ func setupUniforms(state *State) {
 
 	angleUniform := gl.GetUniformLocation(program, gl.Str("angle\x00"))
 	gl.Uniform1fv(angleUniform, 1, &state.Angle)
+	
+	heightUniform := gl.GetUniformLocation(program, gl.Str("height\x00"))
+	gl.Uniform1fv(heightUniform, 1, &state.Height)
 
+	state.Uniforms["heightUniform"] = heightUniform
 	state.Uniforms["projectionUniform"] = projectionUniform
 	state.Uniforms["cameraUniform"] = cameraUniform
 	state.Uniforms["modelUniform"] = modelUniform
@@ -116,6 +120,7 @@ func main() {
 		},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
+		FOV: 45,
 	}
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
@@ -164,48 +169,52 @@ func main() {
 				continue
 			}
 			glfw.PollEvents()
-			render(window, ctx, state, &t)
+			render(window, ctx, state, t)
 		}
 	}
 }
 
-func render(win *glfw.Window, ctx *nk.Context, state *State, time *time.Time) {
+func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 
-	nk.NkPlatformNewFrame()
-
+	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	width, height := win.GetSize()
+	gl.Viewport(0, 0, int32(width), int32(height))
 
-	state.Angle += 0.1
+	now := time.Now()
+	diff := now.Sub(timer).Seconds()
+
+	state.Angle += 0.01
 	state.Model = mgl32.HomogRotate3D(state.Angle, mgl32.Vec3{0, 1, 0})
-	// Render
+	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
+
 	gl.UseProgram(state.Program)
+	gl.UniformMatrix4fv(state.Uniforms["projectionUniform"], 1, false, &state.Projection[0])
 	gl.UniformMatrix4fv(state.Uniforms["modelUniform"], 1, false, &state.Model[0])
+	gl.Uniform1fv(state.Uniforms["heightUniform"], 1, &state.Height)
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 
 	state.Plane.M().Draw()
 
-
-	// Layout
+	nk.NkPlatformNewFrame()
+	// GUI
 	bounds := nk.NkRect(50, 50, 230, 250)
 	update := nk.NkBegin(ctx, "Demo", bounds,
 		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
+
 	if update > 0 {
 		nk.NkLayoutRowStatic(ctx, 30, 80, 1)
 		{
-			if nk.NkButtonLabel(ctx, "button") > 0 {
-				log.Println("[INFO] button pressed!")
-			}
+			nk.NkLabel(ctx, fmt.Sprint("MS: ", 1000/diff), nk.TextAlignLeft)
+			state.Height = nk.NkSlideFloat(ctx, -100.0, state.Height, 100.0, 1.0)
+			state.FOV = nk.NkSlideFloat(ctx, 20.0, state.FOV, 90.0, 1.0)
 		}
 	}
 
 	nk.NkEnd(ctx)
 
-	// Render
-	bg := make([]float32, 4)
-	nk.NkColorFv(bg, state.Nk.bgColor)
-	width, height := win.GetSize()
-	gl.Viewport(0, 0, int32(width), int32(height))
 	nk.NkPlatformRender(nk.AntiAliasingOn, maxVertexBuffer, maxElementBuffer)
+
 	win.SwapBuffers()
 }
 

@@ -30,9 +30,9 @@ func (p *Plane) Construct() {
 
 	for x := 0; x < p.rows; x++ {
 		for y := 0; y < p.cols; y++ {
-			vertices[vertIndex+0] = float32(y - (p.rows - 1) / 2)
+			vertices[vertIndex+0] = float32(y - (p.rows - 1) / 2) * 0.5
 			vertices[vertIndex+1] = midpointGen.Get(utils.Point{X:x, Y:y})
-			vertices[vertIndex+2] = float32(x - (p.cols - 1) / 2)
+			vertices[vertIndex+2] = float32(x - (p.cols - 1) / 2) * 0.5
 			vertIndex += 8
 		}
 	}

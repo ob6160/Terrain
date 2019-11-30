@@ -2,9 +2,9 @@
 
 uniform sampler2D tex;
 in vec2 fragTexCoord;
-in float height;
+in vec3 vertex;
 out vec4 color;
 
 void main() {
-    color = vec4(vec3(height), 1.0);
+    color = vec4(vec3(vertex), 1.0);
 }
