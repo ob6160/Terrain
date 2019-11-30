@@ -149,7 +149,7 @@ func main() {
 
 	nk.NkTexteditInitDefault(&state.Nk.text)
 
-	fpsTicker := time.NewTicker(time.Second / 30)
+	fpsTicker := time.NewTicker(time.Second / 60)
 	for {
 		select {
 		case <-exitC:
@@ -164,7 +164,7 @@ func main() {
 				continue
 			}
 			glfw.PollEvents()
-			render(window, ctx, state, t)
+			render(window, ctx, state, &t)
 		}
 	}
 }
@@ -173,25 +173,17 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, time *time.Time) {
 
 	nk.NkPlatformNewFrame()
 
-		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-		// Update
-		time := glfw.GetTime()
-		elapsed := time - previousTime
-		previousTime = time
+	state.Angle += 0.1
+	state.Model = mgl32.HomogRotate3D(state.Angle, mgl32.Vec3{0, 1, 0})
+	// Render
+	gl.UseProgram(state.Program)
+	gl.UniformMatrix4fv(state.Uniforms["modelUniform"], 1, false, &state.Model[0])
+	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 
-		angle += float32(elapsed)
-		model = mgl32.HomogRotate3D(angle, mgl32.Vec3{0, 1, 0})
-		// Render
-		gl.UseProgram(program)
-		gl.UniformMatrix4fv(modelUniform, 1, false, &model[0])
-		gl.Uniform1fv(angleUniform, 1, &angle)
+	state.Plane.M().Draw()
 
-		mesh.Draw()
-
-		// Maintenance
-		window.SwapBuffers()
-		glfw.PollEvents()
 
 	// Layout
 	bounds := nk.NkRect(50, 50, 230, 250)
@@ -213,8 +205,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, time *time.Time) {
 	nk.NkColorFv(bg, state.Nk.bgColor)
 	width, height := win.GetSize()
 	gl.Viewport(0, 0, int32(width), int32(height))
-	gl.Clear(gl.COLOR_BUFFER_BIT)
-	gl.ClearColor(bg[0], bg[1], bg[2], bg[3])
 	nk.NkPlatformRender(nk.AntiAliasingOn, maxVertexBuffer, maxElementBuffer)
 	win.SwapBuffers()
 }
