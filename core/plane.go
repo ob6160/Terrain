@@ -20,18 +20,14 @@ func NewPlane(rows int, cols int) *Plane {
 	return &newPlane
 }
 
-func (p *Plane) Construct() {
+func (p *Plane) Construct(generator generators.TerrainGenerator) {
 	vertices := make([]float32, p.rows * p.cols * 8)
 	vertIndex := 0
-
-
-	midpointGen := generators.NewMidPointDisplacement(1024,1024)
-	midpointGen.Generate()
 
 	for x := 0; x < p.rows; x++ {
 		for y := 0; y < p.cols; y++ {
 			vertices[vertIndex+0] = float32(y - (p.rows - 1) / 2) * 0.5
-			vertices[vertIndex+1] = midpointGen.Get(utils.Point{X:x, Y:y})
+			vertices[vertIndex+1] = generator.Get(utils.Point{X:x, Y:y})
 			vertices[vertIndex+2] = float32(x - (p.cols - 1) / 2) * 0.5
 			vertIndex += 8
 		}

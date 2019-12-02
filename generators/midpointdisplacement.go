@@ -5,13 +5,18 @@ import (
 	"math/rand"
 )
 
+type TerrainGenerator interface {
+	Generate(spread, reduce float32)
+	Get(point utils.Point) float32
+}
+
 type MidpointDisplacement struct {
 	width, height int
 	heightmap []float32
 }
 
 func NewMidPointDisplacement(width, height int) *MidpointDisplacement {
-	return &MidpointDisplacement{width, height, make([]float32, width * height)}
+	return &MidpointDisplacement{width, height, make([]float32, (width+1) * (height+1))}
 }
 
 func (m *MidpointDisplacement) Get(p utils.Point) float32 {
@@ -40,8 +45,10 @@ func (m *MidpointDisplacement) normalize() {
 	}
 }
 
-func (m *MidpointDisplacement) Generate() {
-	m.heightmap = make([]float32, (m.width+1) * (m.height+1))
+func (m *MidpointDisplacement) Generate(spread, reduce float32) {
+	for i := range m.heightmap {
+		m.heightmap[i] = 0
+	}
 	// Set all four corners to random values
 	topLeft := utils.Point{0,0}
 	topRight := utils.Point{m.width, 0}
@@ -51,9 +58,7 @@ func (m *MidpointDisplacement) Generate() {
 	m.set(topRight, rand.Float32())
 	m.set(bottomLeft, rand.Float32())
 	m.set(bottomRight, rand.Float32())
-
-
-	m.displace(topLeft.ToIndex(m.width),topRight.ToIndex(m.width),bottomLeft.ToIndex(m.width),bottomRight.ToIndex(m.width), 0.5, 0.6)
+	m.displace(topLeft.ToIndex(m.width),topRight.ToIndex(m.width),bottomLeft.ToIndex(m.width),bottomRight.ToIndex(m.width), spread, reduce)
 	m.normalize()
 }
 

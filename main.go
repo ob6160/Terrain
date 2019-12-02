@@ -8,8 +8,10 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/golang-ui/nuklear/nk"
 	"github.com/ob6160/Terrain/core"
+	"github.com/ob6160/Terrain/generators"
 	"github.com/xlab/closer"
 	"log"
+	"math"
 	"runtime"
 	"time"
 )
@@ -30,14 +32,20 @@ type NKState struct {
 }
 
 type State struct {
-	Nk *NKState
-	Program uint32
-	Uniforms map[string]int32 //name -> handle
-	Projection mgl32.Mat4
-	Camera mgl32.Mat4
-	Model mgl32.Mat4
+	Nk                 *NKState
+	Program            uint32
+	Uniforms           map[string]int32 //name -> handle
+	Projection         mgl32.Mat4
+	Camera             mgl32.Mat4
+	Model              mgl32.Mat4
 	Angle, Height, FOV float32
-	Plane *core.Plane
+	Plane              *core.Plane
+	MidpointGen *generators.MidpointDisplacement
+	Spread, Reduce float32
+	
+	//UI
+	TerrainTreeState   nk.CollapseStates
+	CameraTreeState nk.CollapseStates
 }
 
 func init() {
@@ -111,9 +119,8 @@ func main() {
 
 	window := setupOpenGl()
 
-	
 	var testPlane = core.NewPlane(1000,1000)
-	testPlane.Construct()
+	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
 	var state = &State{
 		Nk: &NKState{
 			bgColor: nk.NkRgba(28, 48, 62, 255),
@@ -121,7 +128,12 @@ func main() {
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 45,
+		Spread: 0.5,
+		Reduce: 0.6,
+		MidpointGen: midpointDisp,
 	}
+	midpointDisp.Generate(state.Spread, state.Reduce)
+	testPlane.Construct(state.MidpointGen)
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
@@ -181,10 +193,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	width, height := win.GetSize()
 	gl.Viewport(0, 0, int32(width), int32(height))
 
-	now := time.Now()
-	diff := now.Sub(timer).Seconds()
-
-	state.Angle += 0.01
 	state.Model = mgl32.HomogRotate3D(state.Angle, mgl32.Vec3{0, 1, 0})
 	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
 
@@ -205,9 +213,55 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	if update > 0 {
 		nk.NkLayoutRowStatic(ctx, 30, 80, 1)
 		{
-			nk.NkLabel(ctx, fmt.Sprint("MS: ", 1000/diff), nk.TextAlignLeft)
-			state.Height = nk.NkSlideFloat(ctx, -100.0, state.Height, 100.0, 1.0)
-			state.FOV = nk.NkSlideFloat(ctx, 20.0, state.FOV, 90.0, 1.0)
+
+			if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
+				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
+				{
+					nk.NkLayoutRowPush(ctx, 50)
+					nk.NkLabel(ctx, fmt.Sprintf("Rotation: %f", state.Angle), nk.TextAlignLeft)
+					nk.NkLayoutRowPush(ctx, 110)
+					state.Angle = nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
+				}
+				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
+				{
+					nk.NkLayoutRowPush(ctx, 50)
+					nk.NkLabel(ctx, fmt.Sprintf("FOV: %f", state.FOV), nk.TextAlignLeft)
+					nk.NkLayoutRowPush(ctx, 110)
+					state.FOV = nk.NkSlideFloat(ctx, 20.0, state.FOV, 120.0, 1.0)
+				}
+				nk.NkTreePop(ctx)
+			}
+			if nk.NkTreeStatePush(ctx, nk.TreeTab, "Terrain", &state.TerrainTreeState) > 0 {
+				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
+				{
+
+					nk.NkLayoutRowPush(ctx, 50)
+					nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
+					nk.NkLayoutRowPush(ctx, 110)
+					state.Height = nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
+				}
+				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
+				{
+
+					nk.NkLayoutRowPush(ctx, 50)
+					nk.NkLabel(ctx, "Spread", nk.TextAlignLeft)
+					nk.NkLayoutRowPush(ctx, 110)
+					state.Spread = nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
+				}
+				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
+				{
+
+					nk.NkLayoutRowPush(ctx, 50)
+					nk.NkLabel(ctx, "Reduce", nk.TextAlignLeft)
+					nk.NkLayoutRowPush(ctx, 110)
+					state.Reduce = nk.NkSlideFloat(ctx, 0.0, state.Reduce, 2.0, 0.01)
+				}
+				if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
+					state.MidpointGen.Generate(state.Spread, state.Reduce)
+					state.Plane.Construct(state.MidpointGen)
+				}
+				nk.NkTreePop(ctx)
+			}
 		}
 	}
 
