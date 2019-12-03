@@ -212,7 +212,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	state.Plane.M().Draw()
 
 	// GUI
-	simulBounds := nk.NkRect(50, 50, 300, 300)
+	simulBounds := nk.NkRect(50, 50, 600, 250)
 	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
 		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
 
@@ -220,31 +220,25 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	if simulUpdate > 0 {
 		// Camera Settings Panel
 		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
-			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
-				nk.NkLayoutRowPush(ctx, 50)
 				nk.NkLabel(ctx, "Angle", nk.TextAlignLeft)
-				nk.NkLayoutRowPush(ctx, 130)
 				newAngle := nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
 				if newAngle != state.Angle {
 					state.Angle = newAngle
 				}
-				nk.NkLayoutRowPush(ctx, 30)
 				state.InfoValueString = fmt.Sprintf("%.1f", state.Angle)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
-			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
-				nk.NkLayoutRowPush(ctx, 50)
 				nk.NkLabel(ctx,"FOV", nk.TextAlignLeft)
-				nk.NkLayoutRowPush(ctx, 130)
 				newFOV := nk.NkSlideFloat(ctx, 0.0, state.FOV, 120.0, 1.0)
 				if newFOV != state.FOV {
 					state.FOV = newFOV
 				}
-				nk.NkLayoutRowPush(ctx, 30)
 				state.InfoValueString = fmt.Sprintf("%.1f", state.FOV)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
@@ -258,49 +252,37 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
 				state.Plane.Construct(state.MidpointGen)
 			}
-			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
-
-				nk.NkLayoutRowPush(ctx, 50)
 				nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
-				nk.NkLayoutRowPush(ctx, 130)
 				newHeight := nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
 				if newHeight != state.Height {
 					state.Height = newHeight
 				}
-				nk.NkLayoutRowPush(ctx, 30)
 				state.InfoValueString = fmt.Sprintf("%.1f",  state.Height)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
-			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
-
-				nk.NkLayoutRowPush(ctx, 50)
 				nk.NkLabel(ctx, "Spread", nk.TextAlignLeft)
-				nk.NkLayoutRowPush(ctx, 130)
 				newSpread := nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
 				if newSpread != state.Spread {
 					state.Spread = newSpread
 				}
-				nk.NkLayoutRowPush(ctx, 30)
 				state.InfoValueString = fmt.Sprintf("%.1f",  state.Spread)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
-			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
-
-				nk.NkLayoutRowPush(ctx, 50)
 				nk.NkLabel(ctx, "Reduce", nk.TextAlignLeft)
-				nk.NkLayoutRowPush(ctx, 130)
 				newReduce := nk.NkSlideFloat(ctx, 0.0, state.Reduce, 2.0, 0.01)
 				if newReduce != state.Reduce {
 					state.Reduce = newReduce
 				}
-				nk.NkLayoutRowPush(ctx, 30)
 				state.InfoValueString = fmt.Sprintf("%.1f",  state.Reduce)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
