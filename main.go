@@ -1,7 +1,6 @@
 package main
 
 import (
-	"C"
 	"fmt"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
@@ -10,9 +9,12 @@ import (
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/xlab/closer"
+	"gopkg.in/oleiade/reflections.v1"
 	"log"
 	"math"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,18 +23,12 @@ const (
 	windowHeight = 800
 	maxVertexBuffer  = 512 * 1024
 	maxElementBuffer = 128 * 1024
+	strBufferSize int32 = 256 * 1024
 	vertexShaderPath = "./shaders/main.vert"
 	fragShaderPath = "./shaders/main.frag"
 )
 
-type NKState struct {
-	bgColor nk.Color
-	prop    int32
-	text    nk.TextEdit
-}
-
 type State struct {
-	Nk                 *NKState
 	Program            uint32
 	Uniforms           map[string]int32 //name -> handle
 	Projection         mgl32.Mat4
@@ -46,6 +42,9 @@ type State struct {
 	//UI
 	TerrainTreeState   nk.CollapseStates
 	CameraTreeState nk.CollapseStates
+	DebugField []byte
+	DebugFieldLen int32
+	InfoValueString string
 }
 
 func init() {
@@ -118,13 +117,11 @@ func main() {
 	defer glfw.Terminate()
 
 	window := setupOpenGl()
+	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
 	var testPlane = core.NewPlane(1000,1000)
 	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
 	var state = &State{
-		Nk: &NKState{
-			bgColor: nk.NkRgba(28, 48, 62, 255),
-		},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 45,
@@ -132,6 +129,11 @@ func main() {
 		Spread: 0.5,
 		Reduce: 0.6,
 		MidpointGen: midpointDisp,
+		TerrainTreeState: nk.Maximized,
+		CameraTreeState: nk.Maximized,
+		DebugField: make([]byte, 1000),
+		DebugFieldLen: 0,
+		InfoValueString: "",
 	}
 	midpointDisp.Generate(state.Spread, state.Reduce)
 	testPlane.Construct(state.MidpointGen)
@@ -144,8 +146,12 @@ func main() {
 
 	setupUniforms(state)
 
-	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
-	
+
+	//window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+	//	print(key)
+	//})
+
+
 	atlas := nk.NewFontAtlas()
 	nk.NkFontStashBegin(&atlas)
 	// sansFont := nk.NkFontAtlasAddFromBytes(atlas, MustAsset("assets/FreeSans.ttf"), 16, nil)
@@ -165,9 +171,8 @@ func main() {
 		<-doneC
 	})
 
-	nk.NkTexteditInitDefault(&state.Nk.text)
 
-	fpsTicker := time.NewTicker(time.Second / 60)
+	fpsTicker := time.NewTicker(time.Second / 30)
 	for {
 		select {
 		case <-exitC:
@@ -181,18 +186,19 @@ func main() {
 				close(exitC)
 				continue
 			}
+
 			glfw.PollEvents()
+
 			render(window, ctx, state, t)
 		}
 	}
 }
 
 func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
-
+	nk.NkPlatformNewFrame()
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
-	gl.Viewport(0, 0, int32(width), int32(height))
 
 	state.Model = mgl32.HomogRotate3D(state.Angle, mgl32.Vec3{0, 1, 0})
 	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
@@ -205,73 +211,157 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 
 	state.Plane.M().Draw()
 
-	nk.NkPlatformNewFrame()
 	// GUI
-	bounds := nk.NkRect(50, 50, 230, 250)
-	update := nk.NkBegin(ctx, "Demo", bounds,
+	simulBounds := nk.NkRect(50, 50, 300, 300)
+	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
 		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
 
-	if update > 0 {
-		nk.NkLayoutRowStatic(ctx, 30, 80, 1)
-		{
-
-			if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
-				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
-				{
-					angleStr :=  fmt.Sprintf("Rot: %f", state.Angle)
-					nk.NkLabel(ctx, angleStr, nk.TextAlignLeft)
-					state.Angle = nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
+	// TODO: Abstract UI into its own namespace/module
+	if simulUpdate > 0 {
+		// Camera Settings Panel
+		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
+			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			{
+				nk.NkLayoutRowPush(ctx, 50)
+				nk.NkLabel(ctx, "Angle", nk.TextAlignLeft)
+				nk.NkLayoutRowPush(ctx, 130)
+				newAngle := nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
+				if newAngle != state.Angle {
+					state.Angle = newAngle
 				}
-				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
-				{
-					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, fmt.Sprintf("FOV: %f", state.FOV), nk.TextAlignLeft)
-					nk.NkLayoutRowPush(ctx, 110)
-					state.FOV = nk.NkSlideFloat(ctx, 20.0, state.FOV, 120.0, 1.0)
+				nk.NkLayoutRowPush(ctx, 30)
+				state.InfoValueString = fmt.Sprintf("%.1f", state.Angle)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
-				nk.NkTreePop(ctx)
 			}
-			if nk.NkTreeStatePush(ctx, nk.TreeTab, "Terrain", &state.TerrainTreeState) > 0 {
-				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
-				{
+			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			{
+				nk.NkLayoutRowPush(ctx, 50)
+				nk.NkLabel(ctx,"FOV", nk.TextAlignLeft)
+				nk.NkLayoutRowPush(ctx, 130)
+				newFOV := nk.NkSlideFloat(ctx, 0.0, state.FOV, 120.0, 1.0)
+				if newFOV != state.FOV {
+					state.FOV = newFOV
+				}
+				nk.NkLayoutRowPush(ctx, 30)
+				state.InfoValueString = fmt.Sprintf("%.1f", state.FOV)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+			nk.NkTreePop(ctx)
+		}
+		// Terrain Settings Panel
+		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Terrain", &state.TerrainTreeState) > 0 {
+			if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
+				state.MidpointGen.Generate(state.Spread, state.Reduce)
+				state.Plane.Construct(state.MidpointGen)
+			}
+			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			{
 
-					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, fmt.Sprintf("Height: %f", state.Height), nk.TextAlignLeft)
-					nk.NkLayoutRowPush(ctx, 110)
-					state.Height = nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
+				nk.NkLayoutRowPush(ctx, 50)
+				nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
+				nk.NkLayoutRowPush(ctx, 130)
+				newHeight := nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
+				if newHeight != state.Height {
+					state.Height = newHeight
 				}
-				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
-				{
+				nk.NkLayoutRowPush(ctx, 30)
+				state.InfoValueString = fmt.Sprintf("%.1f",  state.Height)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			{
 
-					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, "Spread", nk.TextAlignLeft)
-					nk.NkLayoutRowPush(ctx, 110)
-					state.Spread = nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
+				nk.NkLayoutRowPush(ctx, 50)
+				nk.NkLabel(ctx, "Spread", nk.TextAlignLeft)
+				nk.NkLayoutRowPush(ctx, 130)
+				newSpread := nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
+				if newSpread != state.Spread {
+					state.Spread = newSpread
 				}
-				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
-				{
+				nk.NkLayoutRowPush(ctx, 30)
+				state.InfoValueString = fmt.Sprintf("%.1f",  state.Spread)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+			nk.NkLayoutRowBegin(ctx, nk.Static, 15, 3)
+			{
 
-					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, "Reduce", nk.TextAlignLeft)
-					nk.NkLayoutRowPush(ctx, 110)
-					state.Reduce = nk.NkSlideFloat(ctx, 0.0, state.Reduce, 2.0, 0.01)
+				nk.NkLayoutRowPush(ctx, 50)
+				nk.NkLabel(ctx, "Reduce", nk.TextAlignLeft)
+				nk.NkLayoutRowPush(ctx, 130)
+				newReduce := nk.NkSlideFloat(ctx, 0.0, state.Reduce, 2.0, 0.01)
+				if newReduce != state.Reduce {
+					state.Reduce = newReduce
 				}
-				if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
-					state.MidpointGen.Generate(state.Spread, state.Reduce)
-					state.Plane.Construct(state.MidpointGen)
+				nk.NkLayoutRowPush(ctx, 30)
+				state.InfoValueString = fmt.Sprintf("%.1f",  state.Reduce)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
-				nk.NkTreePop(ctx)
+			}
+			nk.NkTreePop(ctx)
+		}
+		// Debug Text Input / Output
+	}
+
+	nk.NkEnd(ctx)
+
+	debugBounds := nk.NkRect(windowWidth - 350, windowHeight - 200, 300, 175)
+	debugUpdate := nk.NkBegin(ctx, "Debug Console", debugBounds, nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
+	// Fix for faulty enter key handling
+	// TODO: Abstract debug console handling logic out into its own module
+	if debugUpdate > 0 {
+		nk.NkLayoutRowBegin(ctx, nk.Static, 30, 2)
+		{
+			nk.NkLayoutRowPush(ctx, 230)
+			nk.NkEditString(ctx, nk.EditField, state.DebugField, &state.DebugFieldLen, strBufferSize, nk.NkFilterDefault)
+			nk.NkLayoutRowPush(ctx, 30)
+
+			if nk.NkButtonLabel(ctx, ">>") > 0 ||  win.GetKey(glfw.KeyEnter) == glfw.Press {
+				// TODO: Store settings in a Map so we don't need to do ugly reflection here.
+				if state.DebugFieldLen > 0 {
+					input := string(state.DebugField[:state.DebugFieldLen])
+					cmdSplitted := strings.Split(input, "/")[1]
+					cmd := strings.Split(cmdSplitted, " ")
+					print(fmt.Sprintf("Command: %s\n", input))
+					switch strings.ToLower(cmd[0]) {
+					case "mode":
+						var mesh = state.Plane.M()
+						val := cmd[1]
+						switch strings.ToLower(val) {
+						case "triangles":
+							mesh.RenderMode = gl.TRIANGLES
+						case "lines":
+							mesh.RenderMode = gl.LINES
+						}
+					case "regen":
+						state.MidpointGen.Generate(state.Spread, state.Reduce)
+						state.Plane.Construct(state.MidpointGen)
+					case "set":
+						key := cmd[1]
+						val, _ := strconv.ParseFloat(cmd[2], 32)
+						print(fmt.Sprintf("Key: %s, Val: %f\n", key, val))
+						err := reflections.SetField(state, key, float32(val))
+						if err != nil {
+							fmt.Print(err)
+						}
+					}
+					state.DebugFieldLen = 0
+					state.DebugField = make([]byte, 1000)
+				}
 			}
 		}
 	}
 
 	nk.NkEnd(ctx)
-
+	gl.Viewport(0, 0, int32(width), int32(height))
 	nk.NkPlatformRender(nk.AntiAliasingOn, maxVertexBuffer, maxElementBuffer)
-
 	win.SwapBuffers()
-}
-
-func onError(code int32, msg string) {
-	log.Printf("[glfw ERR]: error %d: %s", code, msg)
 }

@@ -11,8 +11,8 @@ type Plane struct {
 	m Mesh
 }
 
-func (p *Plane) M() Mesh {
-	return p.m
+func (p *Plane) M() *Mesh {
+	return &p.m
 }
 
 func NewPlane(rows int, cols int) *Plane {
