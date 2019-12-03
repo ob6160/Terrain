@@ -23,6 +23,11 @@ func (m Mesh) Draw() {
 }
 
 func (m *Mesh) Construct() {
+	// Free up memory used for last buffers
+	gl.DeleteVertexArrays(1, &m.vao)
+	gl.DeleteBuffers(1, &m.vbo)
+	gl.DeleteBuffers(1, &m.ebo)
+	
 	// Vertex Array Object Setup
 	gl.GenVertexArrays(1, &m.vao)
 

@@ -128,6 +128,7 @@ func main() {
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 45,
+		Height: 0.0,
 		Spread: 0.5,
 		Reduce: 0.6,
 		MidpointGen: midpointDisp,
@@ -217,9 +218,8 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 			if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
 				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
 				{
-					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, fmt.Sprintf("Rotation: %f", state.Angle), nk.TextAlignLeft)
-					nk.NkLayoutRowPush(ctx, 110)
+					angleStr :=  fmt.Sprintf("Rot: %f", state.Angle)
+					nk.NkLabel(ctx, angleStr, nk.TextAlignLeft)
 					state.Angle = nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
 				}
 				nk.NkLayoutRowBegin(ctx, nk.Static, 15, 2)
@@ -236,7 +236,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				{
 
 					nk.NkLayoutRowPush(ctx, 50)
-					nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
+					nk.NkLabel(ctx, fmt.Sprintf("Height: %f", state.Height), nk.TextAlignLeft)
 					nk.NkLayoutRowPush(ctx, 110)
 					state.Height = nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
 				}

@@ -2,6 +2,7 @@ package generators
 
 import (
 	"github.com/ob6160/Terrain/utils"
+	"math"
 	"math/rand"
 )
 
@@ -28,8 +29,8 @@ func (m *MidpointDisplacement) set(p utils.Point, value float32) {
 }
 
 func (m *MidpointDisplacement) normalize() {
-	var maxValue float32 = -1000
-	var minValue float32 = 1000
+	var maxValue = float32(math.Inf(-1))
+	var minValue = float32(math.Inf(1))
 	for i := 0; i < len(m.heightmap); i++ {
 		if m.heightmap[i] > maxValue {
 			maxValue = m.heightmap[i]
