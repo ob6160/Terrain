@@ -8,6 +8,7 @@ import (
 	"github.com/golang-ui/nuklear/nk"
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
+	"github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
 	"gopkg.in/oleiade/reflections.v1"
 	"log"
@@ -28,12 +29,16 @@ const (
 	fragShaderPath = "./shaders/main.frag"
 )
 
+
 type State struct {
 	Program            uint32
 	Uniforms           map[string]int32 //name -> handle
 	Projection         mgl32.Mat4
 	Camera             mgl32.Mat4
+	CameraPos          mgl32.Vec3
+	TerrainHitPos      mgl32.Vec3
 	Model              mgl32.Mat4
+	MousePos           mgl32.Vec4
 	Angle, Height, FOV float32
 	Plane              *core.Plane
 	MidpointGen *generators.MidpointDisplacement
@@ -86,13 +91,17 @@ func setupUniforms(state *State) {
 	projectionUniform := gl.GetUniformLocation(program, gl.Str("projection\x00"))
 	gl.UniformMatrix4fv(projectionUniform, 1, false, &state.Projection[0])
 
-	state.Camera = mgl32.LookAtV(mgl32.Vec3{-400, 200, -400}, mgl32.Vec3{100, 0, 100}, mgl32.Vec3{0, 1, 0})
+	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{100, 0, 100}, mgl32.Vec3{0, 1, 0})
 	cameraUniform := gl.GetUniformLocation(program, gl.Str("camera\x00"))
 	gl.UniformMatrix4fv(cameraUniform, 1, false, &state.Camera[0])
 
 	state.Model = mgl32.Ident4()
 	modelUniform := gl.GetUniformLocation(program, gl.Str("model\x00"))
 	gl.UniformMatrix4fv(modelUniform, 1, false, &state.Model[0])
+
+	state.TerrainHitPos = mgl32.Vec3{0,0,0}
+	terrainHitPos := gl.GetUniformLocation(program, gl.Str("hitpos\x00"))
+	gl.Uniform3fv(terrainHitPos, 1, &state.TerrainHitPos[0])
 
 	textureUniform := gl.GetUniformLocation(program, gl.Str("tex\x00"))
 	gl.Uniform1i(textureUniform, 0)
@@ -108,6 +117,7 @@ func setupUniforms(state *State) {
 	state.Uniforms["cameraUniform"] = cameraUniform
 	state.Uniforms["modelUniform"] = modelUniform
 	state.Uniforms["angleUniform"] = angleUniform
+	state.Uniforms["terrainUniform"] = terrainHitPos
 }
 
 func main() {
@@ -122,9 +132,10 @@ func main() {
 	var testPlane = core.NewPlane(1000,1000)
 	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
 	var state = &State{
+		CameraPos: mgl32.Vec3{-400, 200, -400},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
-		FOV: 45,
+		FOV: 45.0,
 		Height: 0.0,
 		Spread: 0.5,
 		Reduce: 0.6,
@@ -135,6 +146,57 @@ func main() {
 		DebugFieldLen: 0,
 		InfoValueString: "",
 	}
+
+	ortho := mgl32.Ortho(0, windowWidth, windowHeight,0,0,1)
+
+	window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
+		state.MousePos = mgl32.Vec4{float32(x), float32(y), 0, 1.0}
+		var projectedPos = state.MousePos
+		projectedPos = ortho.Mul4x1(projectedPos)
+
+		rayClip := mgl32.Vec4{projectedPos.X(), projectedPos.Y(), -1.0, 1.0}
+		rayEye := state.Projection.Mul4x1(rayClip)
+		rayEye = mgl32.Vec4{rayEye.X(), rayEye.Y(), -1.0, 0.0}
+
+		invertedCamera := state.Camera.Inv()
+		rayWorld := invertedCamera.Mul4x1(rayEye)
+
+		invertedModel := state.Model.Inv()
+		rayWorld = invertedModel.Mul4x1(rayWorld)
+		rayWorld = rayWorld.Normalize()
+		finalRay := mgl32.Vec3{rayWorld.X(), rayWorld.Y(), rayWorld.Z()}
+		
+		camPos := state.CameraPos
+		// Step a fixed distance until the ray is lower than the read value from the heightmap
+		// Get Point Along ray
+		var step float32 = 1.0
+		var dist float32 = 1.0
+		for {
+			if dist > 5000 {
+				break
+			}
+			dist += step
+			scaledRay := finalRay.Mul(dist)
+			finalRay := scaledRay.Add(camPos)
+			// TODO: Phase out utils.Point in favour of mgl32.Vec
+			lookup, _ := state.MidpointGen.Get(utils.Point{
+				X: int(math.Abs(float64(finalRay.Z()))),
+				Y: int(math.Abs(float64(finalRay.X()))),
+			})
+			if lookup*state.Height > finalRay.Y() {
+				state.TerrainHitPos = finalRay
+				break
+			}
+		}
+		gl.UseProgram(state.Program)
+		gl.Uniform3fv(state.Uniforms["terrainUniform"], 1, &state.TerrainHitPos[0])
+		posDebug := fmt.Sprintf("Mouse: (%f, %f, %f)", state.TerrainHitPos.X(), state.TerrainHitPos.Y(), state.TerrainHitPos.Z())
+		log.Println(posDebug)
+	})
+
+
+
+	// Setup terrain
 	midpointDisp.Generate(state.Spread, state.Reduce)
 	testPlane.Construct(state.MidpointGen)
 
@@ -239,7 +301,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newFOV != state.FOV {
 					state.FOV = newFOV
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f", state.FOV)
+				state.InfoValueString = fmt.Sprintf("%.1f", newFOV)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}

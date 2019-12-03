@@ -1,10 +1,14 @@
 #version 410 core
 
 uniform sampler2D tex;
+uniform vec3 hitpos;
 in vec2 fragTexCoord;
 in vec3 vertex;
 out vec4 color;
 
 void main() {
-    color = vec4(vec3(vertex), 1.0);
+    vec3 colour = vertex;
+    vec2 d = vec2(hitpos.x, hitpos.z);
+    float dis = distance(vec2(vertex.x, vertex.z), d);
+    color = vec4(colour + dis/128.0, 1.0);
 }

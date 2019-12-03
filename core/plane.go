@@ -31,9 +31,10 @@ func (p *Plane) Construct(generator generators.TerrainGenerator) {
 
 	for x := 0; x < p.rows; x++ {
 		for y := 0; y < p.cols; y++ {
-			(*vertices)[vertIndex+0] = float32(y - (p.rows - 1) / 2) * 0.5
-			(*vertices)[vertIndex+1] = generator.Get(utils.Point{X:x, Y:y})
-			(*vertices)[vertIndex+2] = float32(x - (p.cols - 1) / 2) * 0.5
+			(*vertices)[vertIndex+0] = float32(y - (p.rows - 1) / 2)
+			height, _ := generator.Get(utils.Point{X:x, Y:y})
+			(*vertices)[vertIndex+1] = height
+			(*vertices)[vertIndex+2] = float32(x - (p.cols - 1) / 2)
 			vertIndex += 8
 		}
 	}
