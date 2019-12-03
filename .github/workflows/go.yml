@@ -23,6 +23,9 @@ jobs:
             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
             dep ensure
         fi
+        sudo apt-get install ninja-build -y
+        sudo apt-get install xorg-dev
+        sudo apt-get install freeglut3-dev
 
     - name: Build
       run: go build -v .
