@@ -1,6 +1,9 @@
 # Independent Project 2019/20 - "Generating and manipulating procedural terrain"
 An exploration of different techniques used in the generation of realistic terrain and their implementation.
 
+## Project as of 2019/12/03
+![Project Demo](demo_1.png)
+
 ## Topics of Interest
 * Different noise generation techniques (diamond-square etc)
 * Rendering techniques (vertices, raymarching etc)
