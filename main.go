@@ -36,6 +36,7 @@ type State struct {
 	Projection         mgl32.Mat4
 	Camera             mgl32.Mat4
 	CameraPos          mgl32.Vec3
+	WorldPos           mgl32.Vec3
 	TerrainHitPos      mgl32.Vec3
 	Model              mgl32.Mat4
 	MousePos           mgl32.Vec4
@@ -91,7 +92,7 @@ func setupUniforms(state *State) {
 	projectionUniform := gl.GetUniformLocation(program, gl.Str("projection\x00"))
 	gl.UniformMatrix4fv(projectionUniform, 1, false, &state.Projection[0])
 
-	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{100, 0, 100}, mgl32.Vec3{0, 1, 0})
+	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
 	cameraUniform := gl.GetUniformLocation(program, gl.Str("camera\x00"))
 	gl.UniformMatrix4fv(cameraUniform, 1, false, &state.Camera[0])
 
@@ -129,10 +130,10 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(1000,1000)
+	var testPlane = core.NewPlane(500,500)
 	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
 	var state = &State{
-		CameraPos: mgl32.Vec3{-400, 200, -400},
+		WorldPos: mgl32.Vec3{-600, 600, -600},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 45.0,
@@ -147,29 +148,34 @@ func main() {
 		InfoValueString: "",
 	}
 
-	ortho := mgl32.Ortho(0, windowWidth, windowHeight,0,0,1)
+	//ortho := mgl32.Ortho(0, windowWidth, windowHeight,0,0,1000)
 
 	window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
-		state.MousePos = mgl32.Vec4{float32(x), float32(y), 0, 1.0}
-		var projectedPos = state.MousePos
-		projectedPos = ortho.Mul4x1(projectedPos)
 
-		rayClip := mgl32.Vec4{projectedPos.X(), projectedPos.Y(), -1.0, 1.0}
-		rayEye := state.Projection.Mul4x1(rayClip)
-		rayEye = mgl32.Vec4{rayEye.X(), rayEye.Y(), -1.0, 0.0}
+		var projX = (2.0 * float32(x)) / float32(windowWidth) - 1.0
+		var projY = (2.0 * float32(y)) / float32(windowHeight) - 1.0
 
-		invertedCamera := state.Camera.Inv()
-		rayWorld := invertedCamera.Mul4x1(rayEye)
 
-		invertedModel := state.Model.Inv()
-		rayWorld = invertedModel.Mul4x1(rayWorld)
-		rayWorld = rayWorld.Normalize()
-		finalRay := mgl32.Vec3{rayWorld.X(), rayWorld.Y(), rayWorld.Z()}
-		
+		bigInverse := state.Projection.Mul4(state.Camera)
+		bigInverse = bigInverse.Inv()
+		screenPos := mgl32.Vec4{projX, -projY, 1.0, 1.0}
+		worldPos := bigInverse.Mul4x1(screenPos)
+		finalRay := mgl32.Vec3{worldPos.X(), worldPos.Y(), worldPos.Z()}.Normalize()
+		//
+		//rayClip := mgl32.Vec4{projX, -projY, -1.0, 1.0}
+		//rayEye := state.Projection.Inv().Mul4x1(rayClip)
+		//rayEye = mgl32.Vec4{rayEye.X(), rayEye.Y(), -1.0, 0.0}
+		//
+		//rayWorld := state.Camera.Inv().Mul4x1(rayEye)
+		//
+		//
+		//
+		//finalRay := mgl32.Vec3{rayWorld.X(), rayWorld.Y(), rayWorld.Z()}
+		//finalRay = finalRay.Normalize()
 		camPos := state.CameraPos
 		// Step a fixed distance until the ray is lower than the read value from the heightmap
 		// Get Point Along ray
-		var step float32 = 1.0
+		var step float32 = 0.1
 		var dist float32 = 1.0
 		for {
 			if dist > 5000 {
@@ -177,14 +183,17 @@ func main() {
 			}
 			dist += step
 			scaledRay := finalRay.Mul(dist)
-			finalRay := scaledRay.Add(camPos)
+			added := scaledRay.Add(camPos)
+
 			// TODO: Phase out utils.Point in favour of mgl32.Vec
 			lookup, _ := state.MidpointGen.Get(utils.Point{
-				X: int(math.Abs(float64(finalRay.Z()))),
-				Y: int(math.Abs(float64(finalRay.X()))),
+				X: int(math.Abs(float64(added.X()))),
+				Y: int(math.Abs(float64(added.Z()))),
 			})
-			if lookup*state.Height > finalRay.Y() {
-				state.TerrainHitPos = finalRay
+
+			if lookup*state.Height > added.Y() {
+				log.Print(dist)
+				state.TerrainHitPos = added
 				break
 			}
 		}
@@ -262,12 +271,14 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-	state.Model = mgl32.HomogRotate3D(state.Angle, mgl32.Vec3{0, 1, 0})
+
+	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
+	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
 	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
 
 	gl.UseProgram(state.Program)
 	gl.UniformMatrix4fv(state.Uniforms["projectionUniform"], 1, false, &state.Projection[0])
-	gl.UniformMatrix4fv(state.Uniforms["modelUniform"], 1, false, &state.Model[0])
+	gl.UniformMatrix4fv(state.Uniforms["cameraUniform"], 1, false, &state.Camera[0])
 	gl.Uniform1fv(state.Uniforms["heightUniform"], 1, &state.Height)
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 
@@ -321,7 +332,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newHeight != state.Height {
 					state.Height = newHeight
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f",  state.Height)
+				state.InfoValueString = fmt.Sprintf("%.1f",  newHeight)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}

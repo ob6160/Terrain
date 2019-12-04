@@ -10,5 +10,9 @@ void main() {
     vec3 colour = vertex;
     vec2 d = vec2(hitpos.x, hitpos.z);
     float dis = distance(vec2(vertex.x, vertex.z), d);
-    color = vec4(colour + dis/128.0, 1.0);
+
+    if(dis < 40.0) {
+        colour = vec3(1.0, 0.0, 1.0) * vertex;
+    }
+    color = vec4(colour, 1.0);
 }
