@@ -60,8 +60,8 @@ func init() {
 
 func setupOpenGl() *glfw.Window {
 	glfw.WindowHint(glfw.Resizable, glfw.False)
-	glfw.WindowHint(glfw.ContextVersionMajor, 4)
-	glfw.WindowHint(glfw.ContextVersionMinor, 1)
+	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 	window, err := glfw.CreateWindow(windowWidth, windowHeight, "Terrain", nil, nil)
@@ -130,7 +130,7 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(500,500)
+	var testPlane = core.NewPlane(1024,1024)
 	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
 	var state = &State{
 		WorldPos: mgl32.Vec3{-600, 600, -600},
@@ -148,50 +148,40 @@ func main() {
 		InfoValueString: "",
 	}
 
-	//ortho := mgl32.Ortho(0, windowWidth, windowHeight,0,0,1000)
-
 	window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
 
 		var projX = (2.0 * float32(x)) / float32(windowWidth) - 1.0
 		var projY = (2.0 * float32(y)) / float32(windowHeight) - 1.0
-
 
 		bigInverse := state.Projection.Mul4(state.Camera)
 		bigInverse = bigInverse.Inv()
 		screenPos := mgl32.Vec4{projX, -projY, 1.0, 1.0}
 		worldPos := bigInverse.Mul4x1(screenPos)
 		finalRay := mgl32.Vec3{worldPos.X(), worldPos.Y(), worldPos.Z()}.Normalize()
-		//
-		//rayClip := mgl32.Vec4{projX, -projY, -1.0, 1.0}
-		//rayEye := state.Projection.Inv().Mul4x1(rayClip)
-		//rayEye = mgl32.Vec4{rayEye.X(), rayEye.Y(), -1.0, 0.0}
-		//
-		//rayWorld := state.Camera.Inv().Mul4x1(rayEye)
-		//
-		//
-		//
-		//finalRay := mgl32.Vec3{rayWorld.X(), rayWorld.Y(), rayWorld.Z()}
-		//finalRay = finalRay.Normalize()
+
 		camPos := state.CameraPos
 		// Step a fixed distance until the ray is lower than the read value from the heightmap
 		// Get Point Along ray
 		var step float32 = 0.1
-		var dist float32 = 1.0
+		var dist float32 = 0.0
+		var xLook, yLook int
 		for {
-			if dist > 5000 {
+			if dist > 3000 {
 				break
 			}
 			dist += step
 			scaledRay := finalRay.Mul(dist)
 			added := scaledRay.Add(camPos)
 
+			xLook = int(float64(added.X())) + 512
+			yLook = int(float64(added.Z())) + 512
 			// TODO: Phase out utils.Point in favour of mgl32.Vec
 			lookup, _ := state.MidpointGen.Get(utils.Point{
-				X: int(math.Abs(float64(added.X()))),
-				Y: int(math.Abs(float64(added.Z()))),
+				X: xLook,
+				Y: yLook,
 			})
 
-			if lookup*state.Height > added.Y() {
+			if lookup > added.Y() {
 				log.Print(dist)
 				state.TerrainHitPos = added
 				break
@@ -199,8 +189,9 @@ func main() {
 		}
 		gl.UseProgram(state.Program)
 		gl.Uniform3fv(state.Uniforms["terrainUniform"], 1, &state.TerrainHitPos[0])
-		posDebug := fmt.Sprintf("Mouse: (%f, %f, %f)", state.TerrainHitPos.X(), state.TerrainHitPos.Y(), state.TerrainHitPos.Z())
-		log.Println(posDebug)
+		//posDebug := fmt.Sprintf("Mouse: (%f, %f, %f)", state.TerrainHitPos.X(), state.TerrainHitPos.Y(), state.TerrainHitPos.Z())
+		//log.Println(posDebug)
+		log.Print("xlook: ", xLook, " | ylook: ", yLook)
 	})
 
 
