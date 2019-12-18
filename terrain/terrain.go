@@ -81,7 +81,7 @@ func (t *Terrain) SimulationStep() {
 		swap.waterHeight[i] += initial.rainRate[i] * delta * WaterIncrementRate
 	}
 
-	// Water cell flow calculation
+	// Water cell outflow flux calculation
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i = utils.ToIndex(x, y, t.width)
@@ -139,7 +139,46 @@ func (t *Terrain) SimulationStep() {
 	}
 
 	// Water height change calculation
+	for x := 0; x < t.width; x++ {
+		for y := 0; y < t.height; y++ {
+			var i = utils.ToIndex(x, y, t.width)
+			//  delta * ( flow_in[4] - flow_out[4] )
 
+			// Calculate the outflow.
+			var o1, o2, o3, o4 = swap.outflowFlux[i].Elem()
+			var outFlow = o1 + o2 + o3 + o4
+			// Calculate inflow..
+			// Right Pipe of the Left Neighbour + Left Pipe of the Right Neighbour + ...
+			var leftIndex = utils.ToIndex(x - 1, y, t.width)
+			var leftCellInflow float64 = 0
+			if leftIndex >= 0 && leftIndex < t.width {
+				_, leftCellInflow, _, _ = swap.outflowFlux[leftIndex].Elem()
+			}
+
+			var rightIndex = utils.ToIndex(x + 1, y, t.width)
+			var rightCellInflow float64 = 0
+			if rightIndex >= 0 && rightIndex < t.width {
+				rightCellInflow, _, _, _ = swap.outflowFlux[rightIndex].Elem()
+			}
+
+			var topIndex = utils.ToIndex(x, y - 1, t.width)
+			var topCellInflow float64 = 0
+			if topIndex >= 0 && topIndex < t.height {
+				_, _, _, topCellInflow = swap.outflowFlux[topIndex].Elem()
+			}
+			
+			var bottomIndex = utils.ToIndex(x, y + 1, t.width)
+			var bottomCellInflow float64 = 0
+			if bottomIndex >= 0 && bottomIndex < t.height {
+				_, _, bottomCellInflow, _ = swap.outflowFlux[bottomIndex].Elem()
+			}
+
+			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
+
+			var deltaWaterHeight = delta * ( inFlow - outFlow )
+			swap.heightmap[i] += float32(deltaWaterHeight)
+		}
+	}
 	// Velocity Field calculation
 
 	// Cell sediment carry capacity calculation
