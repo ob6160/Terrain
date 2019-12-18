@@ -199,11 +199,16 @@ func main() {
 
 	// Setup terrain
 	midpointDisp.Generate(state.Spread, state.Reduce)
-	testPlane.Construct(state.MidpointGen)
 
 	var testTerrain = terrain.NewTerrain(midpointDisp)
 	testTerrain.Initialise()
-	testTerrain.SimulationStep()
+	for i := 0; i < 1; i++  {
+		testTerrain.SimulationStep()
+	}
+
+	midpointDisp.SetHeightmap(midpointDisp.Heightmap())
+	testPlane.Construct(midpointDisp)
+
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 type LayerData struct {
 	heightmap []float32
 	outflowFlux []mgl64.Vec4
-	velocity []mgl64.Vec3
+	velocity []mgl64.Vec2
 	waterHeight []float64
 	suspendedSediment []float64
 	rainRate []float64
@@ -28,7 +28,7 @@ func NewTerrain(heightmap generators.TerrainGenerator) *Terrain {
 
 	initial := LayerData{
 		rainRate:          make([]float64, (width+1)*(height+1)),
-		velocity:          make([]mgl64.Vec3, (width+1)*(height+1)),
+		velocity:          make([]mgl64.Vec2, (width+1)*(height+1)),
 		// L=0, R=1, T=2, B=3
 		outflowFlux:       make([]mgl64.Vec4, (width+1)*(height+1)),
 		suspendedSediment: make([]float64, (width+1)*(height+1)),
@@ -38,7 +38,7 @@ func NewTerrain(heightmap generators.TerrainGenerator) *Terrain {
 
 	swap := LayerData{
 		rainRate:          make([]float64, (width+1)*(height+1)),
-		velocity:          make([]mgl64.Vec3, (width+1)*(height+1)),
+		velocity:          make([]mgl64.Vec2, (width+1)*(height+1)),
 		outflowFlux:       make([]mgl64.Vec4, (width+1)*(height+1)),
 		suspendedSediment: make([]float64, (width+1)*(height+1)),
 		waterHeight:       make([]float64, (width+1)*(height+1)),
@@ -60,7 +60,6 @@ func (t *Terrain) Initialise() {
 		t.initial.rainRate[i] = newVal
 		t.swap.rainRate[i] = newVal
 	}
-	print(t.initial.rainRate)
 }
 
 const (
@@ -68,6 +67,10 @@ const (
 	GravitationalConstant = 9.81
 	PipeCrossSectionalArea = 20
 )
+
+func (t *Terrain) Heightmap() []float32 {
+	return t.initial.heightmap
+}
 
 func (t *Terrain) SimulationStep() {
 	// == Shallow water flow simulation ==
@@ -176,11 +179,45 @@ func (t *Terrain) SimulationStep() {
 			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
 
 			var deltaWaterHeight = delta * ( inFlow - outFlow )
-			swap.heightmap[i] += float32(deltaWaterHeight)
+			swap.waterHeight[i] += deltaWaterHeight
 		}
 	}
 	// Velocity Field calculation
+	for x := 0; x < t.width; x++ {
+		for y := 0; y < t.height; y++ {
+			var i  = utils.ToIndex(x, y, t.width)
+			var li = utils.ToIndex(x - 1, y, t.width)
+			var ri = utils.ToIndex(x + 1, y, t.width)
+			var ti = utils.ToIndex(x, y - 1, t.width)
+			var bi = utils.ToIndex(x, y + 1, t.width)
 
+			var centreLeft, centreRight, centreTop, centreBottom = swap.outflowFlux[i].Elem()
+			
+			var leftInFlow float64 = 0
+			if li >= 0 && li < t.width {
+				_, leftInFlow, _, _ = swap.outflowFlux[li].Elem()
+			}
+
+			var rightInFlow float64 = 0
+			if ri >= 0 && ri < t.width {
+				rightInFlow, _, _, _ = swap.outflowFlux[ri].Elem()
+			}
+			
+			var topInFlow float64 = 0
+			if ti >= 0 && ti < t.height {
+				_, _, _, topInFlow = swap.outflowFlux[ti].Elem()
+			}
+			
+			var bottomInFlow float64 = 0
+			if bi >= 0 && bi < t.height {
+				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
+			}
+
+			var velX = 0.5 * (leftInFlow - centreLeft + centreRight - rightInFlow)
+			var velY = 0.5 * (topInFlow - centreTop + centreBottom - bottomInFlow)
+			t.swap.velocity[i] = mgl64.Vec2{velX, velY}
+		}
+	}
 	// Cell sediment carry capacity calculation
 
 	// Erode / Deposit material based on the carry capacity

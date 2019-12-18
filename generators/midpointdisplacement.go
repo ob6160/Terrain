@@ -22,6 +22,10 @@ func NewMidPointDisplacement(width, height int) *MidpointDisplacement {
 	return &MidpointDisplacement{width, height, make([]float32, (width+1) * (height+1))}
 }
 
+func (m *MidpointDisplacement) SetHeightmap(heightmap []float32) {
+	m.heightmap = heightmap
+}
+
 func (m *MidpointDisplacement) Get(p utils.Point) (data float32, err string) {
 	lookupInd := p.ToIndex(m.width)
 	if lookupInd >= len(m.heightmap) || lookupInd < 0 {
@@ -30,7 +34,7 @@ func (m *MidpointDisplacement) Get(p utils.Point) (data float32, err string) {
 	return m.heightmap[lookupInd], ""
 }
 
-func (m *MidpointDisplacement) Heightmap() []float32 {
+func (m MidpointDisplacement) Heightmap() []float32 {
 	return m.heightmap
 }
 
