@@ -6,12 +6,14 @@ An exploration of different techniques used in the generation of realistic terra
 
 ## Topics of Interest
 * Different noise generation techniques (diamond-square etc)
+* Hydraulic Erosion
+    - Formation of natural phenomena
+* Thermal Erosion
 * Rendering techniques (vertices, raymarching etc)
 * Lighting
 * Texturing
 * Tiling terrain (infinite scroll)
 * Level of Detail
-* Erosion
 * Mouse picking & terrain manipulation
 
 ## Technology Used
@@ -19,6 +21,8 @@ An exploration of different techniques used in the generation of realistic terra
 * OpenGL 4.5
 * GLFW
 
-## Resources
+## References
 * Algorithms for Generating Fractal Landscapes - https://pdfs.semanticscholar.org/54f4/3f55700cf94ffa93ef8528fdce80abf2b006.pdf
-* Implementation of a method for hydraulic erosion https://www.firespark.de/resources/downloads/implementation%20of%20a%20methode%20for%20hydraulic%20erosion.pdf
+* Fast Hydraulic and Thermal Erosion on the GPU - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.309.3824&rep=rep1&type=pdf
+* Interactive physically based Fluid and Erosion Simulation - https://pdfs.semanticscholar.org/f5e8/a436fb57e890b458f88d85588f53e0712fbb.pdf
+* Implementation of a method for hydraulic erosion - https://www.firespark.de/resources/downloads/implementation%20of%20a%20methode%20for%20hydraulic%20erosion.pdf
