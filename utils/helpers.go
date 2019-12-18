@@ -24,12 +24,20 @@ func ReadTextFile(path string) (body string, err error) {
 }
 
 
+func ToIndex(x, y, width int) int {
+	return x * width + y
+}
+
+
+// TODO: Refactor out.
 type Point struct {
 	X, Y int
 }
 
+// Deprecated
+// TODO: Refactor out.
 func (p Point) ToIndex(width int) int {
-	return p.X* width + p.Y
+	return ToIndex(p.X, p.Y, width)
 }
 
 type Rectangle struct {

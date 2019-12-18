@@ -8,7 +8,8 @@ import (
 	"github.com/golang-ui/nuklear/nk"
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
-	"github.com/ob6160/Terrain/utils"
+	"github.com/ob6160/Terrain/terrain"
+	_"github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
 	"gopkg.in/oleiade/reflections.v1"
 	"log"
@@ -137,7 +138,7 @@ func main() {
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 45.0,
-		Height: 0.0,
+		Height: 200.0,
 		Spread: 0.5,
 		Reduce: 0.6,
 		MidpointGen: midpointDisp,
@@ -148,7 +149,7 @@ func main() {
 		InfoValueString: "",
 	}
 
-	window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
+	/*window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
 
 		var projX = (2.0 * float32(x)) / float32(windowWidth) - 1.0
 		var projY = (2.0 * float32(y)) / float32(windowHeight) - 1.0
@@ -192,13 +193,17 @@ func main() {
 		//posDebug := fmt.Sprintf("Mouse: (%f, %f, %f)", state.TerrainHitPos.X(), state.TerrainHitPos.Y(), state.TerrainHitPos.Z())
 		//log.Println(posDebug)
 		log.Print("xlook: ", xLook, " | ylook: ", yLook)
-	})
+	})*/
 
 
 
 	// Setup terrain
 	midpointDisp.Generate(state.Spread, state.Reduce)
 	testPlane.Construct(state.MidpointGen)
+
+	var testTerrain = terrain.NewTerrain(midpointDisp)
+	testTerrain.Initialise()
+	testTerrain.SimulationStep()
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {

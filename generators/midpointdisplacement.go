@@ -8,7 +8,9 @@ import (
 
 type TerrainGenerator interface {
 	Generate(spread, reduce float32)
+	Heightmap() []float32
 	Get(point utils.Point) (float32, string)
+	Dimensions() (int, int)
 }
 
 type MidpointDisplacement struct {
@@ -26,6 +28,14 @@ func (m *MidpointDisplacement) Get(p utils.Point) (data float32, err string) {
 		return 0, "Out of bounds."
 	}
 	return m.heightmap[lookupInd], ""
+}
+
+func (m *MidpointDisplacement) Heightmap() []float32 {
+	return m.heightmap
+}
+
+func (m *MidpointDisplacement) Dimensions() (int, int){
+	return m.width, m.height
 }
 
 func (m *MidpointDisplacement) set(p utils.Point, value float32) {
