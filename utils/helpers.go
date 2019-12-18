@@ -23,7 +23,6 @@ func ReadTextFile(path string) (body string, err error) {
 	return body, err
 }
 
-
 func ToIndex(x, y, width int) int {
 	return x * width + y
 }
