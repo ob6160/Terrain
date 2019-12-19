@@ -44,6 +44,7 @@ type State struct {
 	Angle, Height, FOV float32
 	Plane              *core.Plane
 	MidpointGen *generators.MidpointDisplacement
+	TerrainEroder *terrain.Terrain
 	Spread, Reduce float32
 	
 	//UI
@@ -131,17 +132,20 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(1024,1024)
-	var midpointDisp = generators.NewMidPointDisplacement(1024,1024)
+	var testPlane = core.NewPlane(128,128)
+	var midpointDisp = generators.NewMidPointDisplacement(128,128)
+	var terrainEroder = terrain.NewTerrain(midpointDisp)
+
 	var state = &State{
-		WorldPos: mgl32.Vec3{-600, 600, -600},
+		WorldPos: mgl32.Vec3{-200, 200, -200},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
-		FOV: 45.0,
-		Height: 200.0,
+		FOV: 20.0,
+		Height: 0.0,
 		Spread: 0.5,
 		Reduce: 0.6,
 		MidpointGen: midpointDisp,
+		TerrainEroder: terrainEroder,
 		TerrainTreeState: nk.Maximized,
 		CameraTreeState: nk.Maximized,
 		DebugField: make([]byte, 1000),
@@ -149,64 +153,13 @@ func main() {
 		InfoValueString: "",
 	}
 
-	/*window.SetCursorPosCallback(func(w *glfw.Window, x, y float64) {
-
-		var projX = (2.0 * float32(x)) / float32(windowWidth) - 1.0
-		var projY = (2.0 * float32(y)) / float32(windowHeight) - 1.0
-
-		bigInverse := state.Projection.Mul4(state.Camera)
-		bigInverse = bigInverse.Inv()
-		screenPos := mgl32.Vec4{projX, -projY, 1.0, 1.0}
-		worldPos := bigInverse.Mul4x1(screenPos)
-		finalRay := mgl32.Vec3{worldPos.X(), worldPos.Y(), worldPos.Z()}.Normalize()
-
-		camPos := state.CameraPos
-		// Step a fixed distance until the ray is lower than the read value from the heightmap
-		// Get Point Along ray
-		var step float32 = 0.1
-		var dist float32 = 0.0
-		var xLook, yLook int
-		for {
-			if dist > 3000 {
-				break
-			}
-			dist += step
-			scaledRay := finalRay.Mul(dist)
-			added := scaledRay.Add(camPos)
-
-			xLook = int(float64(added.X())) + 512
-			yLook = int(float64(added.Z())) + 512
-			// TODO: Phase out utils.Point in favour of mgl32.Vec
-			lookup, _ := state.MidpointGen.Get(utils.Point{
-				X: xLook,
-				Y: yLook,
-			})
-
-			if lookup > added.Y() {
-				log.Print(dist)
-				state.TerrainHitPos = added
-				break
-			}
-		}
-		gl.UseProgram(state.Program)
-		gl.Uniform3fv(state.Uniforms["terrainUniform"], 1, &state.TerrainHitPos[0])
-		//posDebug := fmt.Sprintf("Mouse: (%f, %f, %f)", state.TerrainHitPos.X(), state.TerrainHitPos.Y(), state.TerrainHitPos.Z())
-		//log.Println(posDebug)
-		log.Print("xlook: ", xLook, " | ylook: ", yLook)
-	})*/
-
-
 
 	// Setup terrain
 	midpointDisp.Generate(state.Spread, state.Reduce)
 
-	var testTerrain = terrain.NewTerrain(midpointDisp)
-	testTerrain.Initialise()
-	for i := 0; i < 1; i++  {
-		testTerrain.SimulationStep()
-	}
+	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
+	
 
-	midpointDisp.SetHeightmap(midpointDisp.Heightmap())
 	testPlane.Construct(midpointDisp)
 
 
@@ -272,6 +225,14 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
+
+	if time.Now().Unix() % 2  == 0 {
+
+	}
+
+	state.TerrainEroder.SimulationStep()
+	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
+	state.Plane.Construct(state.MidpointGen)
 
 	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
 	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
@@ -399,6 +360,12 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 						}
 					case "regen":
 						state.MidpointGen.Generate(state.Spread, state.Reduce)
+						state.Plane.Construct(state.MidpointGen)
+					case "step":
+						for i:= 0; i < 100; i++ {
+							state.TerrainEroder.SimulationStep()
+						}
+						state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
 						state.Plane.Construct(state.MidpointGen)
 					case "set":
 						key := cmd[1]
