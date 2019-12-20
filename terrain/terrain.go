@@ -5,6 +5,7 @@ import (
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 	"math"
+	"math/rand"
 	_ "math/rand"
 )
 
@@ -62,8 +63,7 @@ const (
 	WaterIncrementRate = 0.012
 	GravitationalConstant = 9.81
 	PipeCrossSectionalArea = 20
-	//EvaporationRate = 0.015
-	EvaporationRate = 0.6
+	EvaporationRate = 0.015
 	TimeStep = 0.02
 )
 
@@ -75,22 +75,18 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	copy(t.persistCopy, heightmap)
 	// Set a constant rain rate for each cell
 	for i := range t.initial.rainRate {
-		var val = 0.5
+		var val = rand.Float64()
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
-
-	/*for i := range initial.heightmap {
-		swap.waterHeight[i] += initial.rainRate[i] * delta * WaterIncrementRate
-	}*/
 }
 
 func (t *Terrain) Heightmap() []float32 {
 
 	for i, _ := range t.initial.waterHeight {
-		//t.heightmap[i] = float32(t.initial.velocity[i].Len())*100.0+ 0.3
-		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i]
-				t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i])
+		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i] // Shows the velocity for each cell.
+		t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
+		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
 	}
 	return t.heightmap
 }
