@@ -316,10 +316,11 @@ func (t *Terrain) SimulationStep() {
 			var dyv = mgl64.Vec3{0, dy, 2}
 			var normal = dxv.Cross(dyv)
 			var tiltAngle = math.Abs(normal.Y()) / normal.Len()
-			
 			var sediment = t.initial.suspendedSediment[i]
+			//var waterHeight = t.initial.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
-			
+
+			//var maximum = 1 - math.Max(0, 100 - waterHeight) / 100
 			var carryCapacity = SedimentCarryCapacity * velocity * math.Min(0.05, tiltAngle)
 
 			if carryCapacity > sediment {
@@ -339,6 +340,13 @@ func (t *Terrain) SimulationStep() {
 
 		for x := 0; x < t.width; x++ {
 			for y := 0; y < t.height; y++ {
+				var i = utils.ToIndex(x, y, t.width)
+				var pos = mgl64.Vec2{float64(x), float64(y)}
+				var vel = t.swap.velocity[i]
+				var dVel = pos.Sub(vel)
+				
+				var a = mgl64.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
+				var b = mgl64.Vec2{math.Ceil(dVel.X()), math.Ceil(dVel.Y())}
 
 			}
 		}
