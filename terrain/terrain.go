@@ -5,7 +5,6 @@ import (
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 	"math"
-	"math/rand"
 	_ "math/rand"
 )
 
@@ -63,6 +62,9 @@ const (
 	WaterIncrementRate = 0.012
 	GravitationalConstant = 9.81
 	PipeCrossSectionalArea = 20
+	//EvaporationRate = 0.015
+	EvaporationRate = 0.6
+	TimeStep = 0.02
 )
 
 func (t *Terrain) Initialise(heightmap []float32) {
@@ -73,11 +75,10 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	copy(t.persistCopy, heightmap)
 	// Set a constant rain rate for each cell
 	for i := range t.initial.rainRate {
-		var newVal = rand.Float64()
-		t.initial.rainRate[i] = newVal
-		t.swap.rainRate[i] = newVal
+		var val = 0.5
+		t.initial.rainRate[i] = val
+		t.swap.rainRate[i] = val
 	}
-	
 
 	/*for i := range initial.heightmap {
 		swap.waterHeight[i] += initial.rainRate[i] * delta * WaterIncrementRate
@@ -88,8 +89,8 @@ func (t *Terrain) Heightmap() []float32 {
 
 	for i, _ := range t.initial.waterHeight {
 		//t.heightmap[i] = float32(t.initial.velocity[i].Len())*100.0+ 0.3
-		t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]*100.0)
-		//		t.heightmap[i] = t.persistCopy[i]
+		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i]
+				t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i])
 	}
 	return t.heightmap
 }
@@ -98,7 +99,7 @@ func (t *Terrain) SimulationStep() {
 	// == Shallow water flow simulation ==
 	var initial = *t.initial
 	var swap = *t.swap
-	var delta = 0.008
+	var delta = TimeStep
 	var dimensions = len(initial.heightmap)
 
 	// Water Height Update (from rainRate array or constant water sources).
@@ -155,8 +156,6 @@ func (t *Terrain) SimulationStep() {
 
 			var scaleFactor = math.Min(1, waterHeight / ((leftOutflow + rightOutflow + topOutflow + bottomOutflow) * delta))
 
-
-
 			if x == 0  {
 				leftOutflow = 0
 			}
@@ -165,11 +164,11 @@ func (t *Terrain) SimulationStep() {
 				bottomOutflow = 0
 			}
 			
-			if x == t.width - 1 {
+			if x == t.width {
 				rightOutflow = 0
 			}
 			
-			if y == t.height - 1 {
+			if y == t.height {
 				topOutflow = 0
 			}
 
@@ -256,15 +255,12 @@ func (t *Terrain) SimulationStep() {
 				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
 			}
 
-			var velX = 0.5 * (leftInFlow - centreLeft + centreRight - rightInFlow)
-			if math.IsNaN(velX) {
-				velX = 0.0
-			}
-			var velY = 0.5 * (topInFlow - centreTop + centreBottom - bottomInFlow)
-			if math.IsNaN(velY) {
-				velY = 0.0
-			}
+			var velX = (leftInFlow - centreLeft + centreRight - rightInFlow) / 2
+			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow) / 2
+
 			t.swap.velocity[i] = mgl64.Vec2{velX, velY}
+			
+			t.swap.waterHeight[i] *= 1 - EvaporationRate * delta
 		}
 	}
 

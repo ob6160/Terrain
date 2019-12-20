@@ -225,11 +225,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-
-	if time.Now().Unix() % 2  == 0 {
-
-	}
-
 	state.TerrainEroder.SimulationStep()
 	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
 	state.Plane.Construct(state.MidpointGen)
@@ -284,7 +279,10 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 		// Terrain Settings Panel
 		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Terrain", &state.TerrainTreeState) > 0 {
 			if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
+
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
+				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen)
+				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
 				state.Plane.Construct(state.MidpointGen)
 			}
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
