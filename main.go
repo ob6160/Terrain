@@ -134,8 +134,10 @@ func main() {
 
 	var testPlane = core.NewPlane(128,128)
 	var midpointDisp = generators.NewMidPointDisplacement(128,128)
+	midpointDisp.Generate(0.5, 0.6)
 	var terrainEroder = terrain.NewTerrain(midpointDisp)
 
+	// TODO: Move defaults into configurable constants.
 	var state = &State{
 		WorldPos: mgl32.Vec3{-200, 200, -200},
 		Uniforms: make(map[string]int32),
@@ -155,11 +157,7 @@ func main() {
 
 
 	// Setup terrain
-	midpointDisp.Generate(state.Spread, state.Reduce)
-
 	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
-	
-
 	testPlane.Construct(midpointDisp)
 
 
@@ -168,26 +166,11 @@ func main() {
 		panic(err)
 	}
 	state.Program = program
-
 	setupUniforms(state)
-
-
-	//window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
-	//	print(key)
-	//})
-
 
 	atlas := nk.NewFontAtlas()
 	nk.NkFontStashBegin(&atlas)
-	// sansFont := nk.NkFontAtlasAddFromBytes(atlas, MustAsset("assets/FreeSans.ttf"), 16, nil)
-	// config := nk.NkFontConfig(14)
-	// config.SetOversample(1, 1)
-	// config.SetRange(nk.NkFontChineseGlyphRanges())
-	// simsunFont := nk.NkFontAtlasAddFromFile(atlas, "/Library/Fonts/Microsoft/SimHei.ttf", 14, &config)
 	nk.NkFontStashEnd()
-	// if simsunFont != nil {
-	// 	nk.NkStyleSetFont(ctx, simsunFont.Handle())
-	// }
 
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
@@ -195,7 +178,6 @@ func main() {
 		close(exitC)
 		<-doneC
 	})
-
 
 	fpsTicker := time.NewTicker(time.Second / 30)
 	for {

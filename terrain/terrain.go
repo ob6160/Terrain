@@ -16,6 +16,7 @@ type LayerData struct {
 	waterHeight []float64
 	suspendedSediment []float64
 	rainRate []float64
+	tiltMap []float64
 }
 
 type Terrain struct {
@@ -23,7 +24,7 @@ type Terrain struct {
 	swap *LayerData
 	width, height int
 	heightmap []float32
-	persistCopy []float32
+	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
 }
 
 func NewTerrain(heightmap generators.TerrainGenerator) *Terrain {
@@ -62,9 +63,10 @@ func NewTerrain(heightmap generators.TerrainGenerator) *Terrain {
 const (
 	WaterIncrementRate = 0.012
 	GravitationalConstant = 9.81
-	PipeCrossSectionalArea = 20
+	PipeCrossSectionalArea = 1
 	EvaporationRate = 0.015
 	TimeStep = 0.02
+	SedimentCarryCapacity = 1.0
 )
 
 func (t *Terrain) Initialise(heightmap []float32) {
@@ -74,6 +76,8 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	copy(t.heightmap, heightmap)
 	copy(t.persistCopy, heightmap)
 	// Set a constant rain rate for each cell
+	// TODO: Customise the area that is being rained on?
+	// TODO: Single point sources, multiple point sources of custom radius.
 	for i := range t.initial.rainRate {
 		var val = rand.Float64()
 		t.initial.rainRate[i] = val
@@ -81,12 +85,25 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	}
 }
 
+func (t *Terrain) Tiltmap() []float32 {
+	for x := 0; x < t.width; x++ {
+		for y := 0; y < t.height; y++ {
+			// Plan:
+
+			// Find delta in height between the Left and Right neighbours
+			// Find delta in height between the Top and Bottom neighbours
+			// Use deltas to find the normal
+			// Take y coordinate of normal and divide through by magnitude to find the sin(tilt_angle)
+		}
+	}
+}
+
 func (t *Terrain) Heightmap() []float32 {
 
 	for i, _ := range t.initial.waterHeight {
 		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i] // Shows the velocity for each cell.
-		t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
-		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
+		//t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
+		t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
 	}
 	return t.heightmap
 }
@@ -95,13 +112,12 @@ func (t *Terrain) SimulationStep() {
 	// == Shallow water flow simulation ==
 	var initial = *t.initial
 	var swap = *t.swap
-	var delta = TimeStep
 	var dimensions = len(initial.heightmap)
 
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
 	for i := range initial.heightmap {
-		swap.waterHeight[i] += initial.rainRate[i] * delta * WaterIncrementRate
+		swap.waterHeight[i] += initial.rainRate[i] * TimeStep * WaterIncrementRate
 	}
 
 	// Water cell outflow flux calculation
@@ -118,7 +134,7 @@ func (t *Terrain) SimulationStep() {
 				var leftHeight = float64(initial.heightmap[leftIndex])
 				// Change in height between current cell and cell to the immediate left.
 				leftHeightDiff := landHeight + waterHeight - leftHeight - swap.waterHeight[leftIndex]
-				leftOutflow = math.Max(0, iL + delta * PipeCrossSectionalArea * (GravitationalConstant * leftHeightDiff))
+				leftOutflow = math.Max(0, iL + TimeStep * PipeCrossSectionalArea * (GravitationalConstant * leftHeightDiff))
 			}
 
 			var rightIndex = utils.ToIndex(x + 1, y, t.width)
@@ -127,7 +143,7 @@ func (t *Terrain) SimulationStep() {
 				var rightHeight = float64(initial.heightmap[rightIndex])
 				// Change in height between current cell and cell to the immediate left.
 				rightHeightDiff := landHeight + waterHeight - rightHeight - swap.waterHeight[rightIndex]
-				rightOutflow = math.Max(0, iR + delta * PipeCrossSectionalArea * (GravitationalConstant * rightHeightDiff))
+				rightOutflow = math.Max(0, iR + TimeStep * PipeCrossSectionalArea * (GravitationalConstant * rightHeightDiff))
 			}
 
 
@@ -137,7 +153,7 @@ func (t *Terrain) SimulationStep() {
 				var topHeight = float64(initial.heightmap[topIndex])
 				// Change in height between current cell and cell to the immediate left.
 				topHeightDiff := landHeight + waterHeight - topHeight - swap.waterHeight[topIndex]
-				topOutflow = math.Max(0, iT + delta * PipeCrossSectionalArea * (GravitationalConstant * topHeightDiff))
+				topOutflow = math.Max(0, iT + TimeStep * PipeCrossSectionalArea * (GravitationalConstant * topHeightDiff))
 
 			}
 
@@ -147,10 +163,10 @@ func (t *Terrain) SimulationStep() {
 				var bottomHeight = float64(initial.heightmap[bottomIndex])
 				// Change in height between current cell and cell to the immediate left.
 				bottomHeightDiff := landHeight + waterHeight - bottomHeight - swap.waterHeight[bottomIndex]
-				bottomOutflow = math.Max(0, iB + delta*PipeCrossSectionalArea*(GravitationalConstant*bottomHeightDiff))
+				bottomOutflow = math.Max(0, iB + TimeStep*PipeCrossSectionalArea*(GravitationalConstant*bottomHeightDiff))
 			}
 
-			var scaleFactor = math.Min(1, waterHeight / ((leftOutflow + rightOutflow + topOutflow + bottomOutflow) * delta))
+			var scaleFactor = math.Min(1, waterHeight / ((leftOutflow + rightOutflow + topOutflow + bottomOutflow) * TimeStep))
 
 			if x == 0  {
 				leftOutflow = 0
@@ -182,13 +198,12 @@ func (t *Terrain) SimulationStep() {
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i = utils.ToIndex(x, y, t.width)
-			//  delta * ( flow_in[4] - flow_out[4] )
-
 			// Calculate the outflow.
 			var o1, o2, o3, o4 = swap.outflowFlux[i].Elem()
 			var outFlow = o1 + o2 + o3 + o4
 			// Calculate inflow..
 			// Right Pipe of the Left Neighbour + Left Pipe of the Right Neighbour + ...
+			// TODO: Can we make a safe function that wraps out of bounds accesses on the grid?
 			var leftIndex = utils.ToIndex(x - 1, y, t.width)
 			var leftCellInflow float64 = 0
 			if leftIndex >= 0 && leftIndex < dimensions {
@@ -215,9 +230,9 @@ func (t *Terrain) SimulationStep() {
 
 			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
 
-			var deltaWaterHeight = delta * ( inFlow - outFlow )
+			var TimeStepWaterHeight = TimeStep * ( inFlow - outFlow )
 
-			swap.waterHeight[i] += deltaWaterHeight
+			swap.waterHeight[i] += TimeStepWaterHeight
 		}
 	}
 	// Velocity Field calculation
@@ -230,7 +245,7 @@ func (t *Terrain) SimulationStep() {
 			var bi = utils.ToIndex(x, y + 1, t.width)
 
 			var centreLeft, centreRight, centreTop, centreBottom = swap.outflowFlux[i].Elem()
-			
+
 			var leftInFlow float64 = 0
 			if li >= 0 && li < dimensions {
 				_, leftInFlow, _, _ = swap.outflowFlux[li].Elem()
@@ -240,12 +255,12 @@ func (t *Terrain) SimulationStep() {
 			if ri >= 0 && ri < dimensions {
 				rightInFlow, _, _, _ = swap.outflowFlux[ri].Elem()
 			}
-			
+
 			var topInFlow float64 = 0
 			if ti >= 0 && ti < dimensions {
 				_, _, _, topInFlow = swap.outflowFlux[ti].Elem()
 			}
-			
+
 			var bottomInFlow float64 = 0
 			if bi >= 0 && bi < dimensions {
 				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
@@ -253,10 +268,22 @@ func (t *Terrain) SimulationStep() {
 
 			var velX = (leftInFlow - centreLeft + centreRight - rightInFlow) / 2
 			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow) / 2
-
 			t.swap.velocity[i] = mgl64.Vec2{velX, velY}
-			
-			t.swap.waterHeight[i] *= 1 - EvaporationRate * delta
+		}
+	}
+
+
+	for x := 0; x < t.width; x++ {
+		for y := 0; y < t.height; y++ {
+			var i  = utils.ToIndex(x, y, t.width)
+			/*
+			var li = utils.ToIndex(x - 1, y, t.width)
+			var ri = utils.ToIndex(x + 1, y, t.width)
+			var ti = utils.ToIndex(x, y - 1, t.width)
+			var bi = utils.ToIndex(x, y + 1, t.width)*/
+
+
+			t.swap.waterHeight[i] *= 1 - EvaporationRate * TimeStep
 		}
 	}
 
