@@ -81,7 +81,7 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
 	for i := range t.initial.rainRate {
-		var val = rand.Float64()
+		var val = rand.Float64() * 5.0
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
@@ -92,8 +92,8 @@ func (t *Terrain) Heightmap() []float32 {
 		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i] // Shows the velocity for each cell.
 		//t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
 		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
-		//t.heightmap[i] = t.initial.heightmap[i]
-		t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 100
+		t.heightmap[i] = t.initial.heightmap[i]
+		//t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 100
 	}
 	return t.heightmap
 }
@@ -343,11 +343,37 @@ func (t *Terrain) SimulationStep() {
 				var i = utils.ToIndex(x, y, t.width)
 				var pos = mgl64.Vec2{float64(x), float64(y)}
 				var vel = t.swap.velocity[i]
-				var dVel = pos.Sub(vel)
-				
+				var dVel = pos.Sub(vel.Mul(TimeStep))
+	
 				var a = mgl64.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
 				var b = mgl64.Vec2{math.Ceil(dVel.X()), math.Ceil(dVel.Y())}
-
+				
+				var i1Val = 0.0
+				i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
+				if WithinBounds(i1, dimensions) {
+					i1Val = t.initial.suspendedSediment[i1]
+				}
+				var i2Val = 0.0
+				i2 := utils.ToIndex(int(b.X()), int(a.Y()), t.width)
+				if WithinBounds(i2, dimensions) {
+					i2Val = t.initial.suspendedSediment[i2]
+				}
+				var i3Val = 0.0
+				i3 := utils.ToIndex(int(a.X()), int(b.Y()), t.width)
+				if WithinBounds(i3, dimensions) {
+					i3Val = t.initial.suspendedSediment[i3]
+				}
+				var i4Val = 0.0
+				i4 := utils.ToIndex(int(b.X()), int(b.Y()), t.width)
+				if WithinBounds(i4, dimensions) {
+					i4Val = t.initial.suspendedSediment[i4]
+				}
+				
+				t.swap.suspendedSediment[i] = i1Val * (1 - dVel.X()) * (1- dVel.Y()) +
+					i2Val * dVel.X() * (1 - dVel.Y()) +
+					i3Val * (1 - dVel.X()) * dVel.Y() +
+					i4Val * dVel.X() * dVel.Y()
+				
 			}
 		}
 	}
