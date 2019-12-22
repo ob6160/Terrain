@@ -46,14 +46,16 @@ type State struct {
 	MidpointGen *generators.MidpointDisplacement
 	TerrainEroder *terrain.Terrain
 	Spread, Reduce float32
-	
+	ErosionState *terrain.ErosionState
 	//UI
 	TerrainTreeState   nk.CollapseStates
 	CameraTreeState nk.CollapseStates
+	ErosionTreeState nk.CollapseStates
 	DebugField []byte
 	DebugFieldLen int32
 	InfoValueString string
 }
+
 
 func init() {
 	// GLFW event handling must run on the main OS thread
@@ -132,22 +134,32 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(128,128)
-	var midpointDisp = generators.NewMidPointDisplacement(128,128)
-	midpointDisp.Generate(0.5, 0.6)
-	var terrainEroder = terrain.NewTerrain(midpointDisp)
+	var testPlane = core.NewPlane(256,256)
+	var midpointDisp = generators.NewMidPointDisplacement(256,256)
+	midpointDisp.Generate(0.5, 0.5)
+	
+	var erosionState = terrain.ErosionState{
+		WaterIncrementRate:     0.012,
+		GravitationalConstant:  9.81,
+		PipeCrossSectionalArea: 20,
+		EvaporationRate:        0.2,
+		TimeStep:               0.01,
+	}
+	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
 		WorldPos: mgl32.Vec3{-200, 200, -200},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
-		FOV: 20.0,
+		FOV: 30.0,
 		Height: 0.0,
 		Spread: 0.5,
-		Reduce: 0.6,
+		Reduce: 0.5,
 		MidpointGen: midpointDisp,
 		TerrainEroder: terrainEroder,
+		ErosionState: &erosionState,
+		ErosionTreeState: nk.Maximized,
 		TerrainTreeState: nk.Maximized,
 		CameraTreeState: nk.Maximized,
 		DebugField: make([]byte, 1000),
@@ -224,7 +236,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	state.Plane.M().Draw()
 
 	// GUI
-	simulBounds := nk.NkRect(50, 50, 600, 250)
+	simulBounds := nk.NkRect(50, 50, 300, 350)
 	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
 		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
 
@@ -263,10 +275,11 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 			if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
 
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
-				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen)
+				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen, state.ErosionState)
 				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
 				state.Plane.Construct(state.MidpointGen)
 			}
+			// TODO: Abstract out into a function so we reduce code repetition.
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
 				nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
@@ -274,7 +287,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newHeight != state.Height {
 					state.Height = newHeight
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f",  newHeight)
+				state.InfoValueString = fmt.Sprintf("%.1f",  state.Height)
 				if len(state.InfoValueString) != 0 {
 					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
@@ -306,6 +319,75 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 			nk.NkTreePop(ctx)
 		}
 		// Debug Text Input / Output
+
+		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Erosion", &state.ErosionTreeState) > 0 {
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
+			{
+				nk.NkLabel(ctx, "Water Incrmt Rate", nk.TextAlignLeft)
+				newRate := nk.NkSlideFloat(ctx, 0.001, float32(state.ErosionState.WaterIncrementRate), 0.2, 0.0001)
+				if newRate != float32(state.ErosionState.WaterIncrementRate) {
+					state.ErosionState.WaterIncrementRate = float64(newRate)
+				}
+				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.WaterIncrementRate)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
+			{
+				nk.NkLabel(ctx, "Gravitational Constant", nk.TextAlignLeft)
+				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.GravitationalConstant), 20.0, 0.1)
+				if newRate != float32(state.ErosionState.GravitationalConstant) {
+					state.ErosionState.GravitationalConstant = float64(newRate)
+				}
+				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.GravitationalConstant)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
+			{
+				nk.NkLabel(ctx, "Pipe Cross Section Area", nk.TextAlignLeft)
+				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.PipeCrossSectionalArea), 100.0, 1.0)
+				if newRate != float32(state.ErosionState.PipeCrossSectionalArea) {
+					state.ErosionState.PipeCrossSectionalArea = float64(newRate)
+				}
+				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.PipeCrossSectionalArea)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
+			{
+				nk.NkLabel(ctx, "Evaporation Rate", nk.TextAlignLeft)
+				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.EvaporationRate), 2.0, 0.01)
+				if newRate != float32(state.ErosionState.EvaporationRate) {
+					state.ErosionState.EvaporationRate = float64(newRate)
+				}
+				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.EvaporationRate)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+
+			nk.NkLayoutRowDynamic(ctx, 15, 3)
+			{
+				nk.NkLabel(ctx, "Timestep", nk.TextAlignLeft)
+				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.TimeStep), 2.0, 0.001)
+				if newRate != float32(state.ErosionState.TimeStep) {
+					state.ErosionState.TimeStep = float64(newRate)
+				}
+				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.TimeStep)
+				if len(state.InfoValueString) != 0 {
+					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
+				}
+			}
+			
+			nk.NkTreePop(ctx)
+		}
 	}
 
 	nk.NkEnd(ctx)
