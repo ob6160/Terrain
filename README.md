@@ -1,6 +1,25 @@
 # Independent Project 2019/20 - "Generating and manipulating procedural terrain"
 Terrain generation coupled with hydraulic erosion on GPU. Comparison with same implementation on CPU.
 
+## Upcoming milestones
+
+### Erosion
+
+- [ ] Hydraulic Erosion implementation on GPU
+- [ ] Research into Thermal Erosion
+
+
+### Rendering
+
+- [ ] Rendering with surface normals and textures
+- [ ] Rendering water
+
+
+### UI
+
+- [ ] NK label segfault workaround
+- [ ] Free floating camera
+
 ## Project as of 2019/12/23
 ![Project Demo, showing Hydraulic Erosion](demo_2.png)
 
