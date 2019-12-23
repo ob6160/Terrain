@@ -23,6 +23,7 @@ type LayerData struct {
 type ErosionState struct {
 	IsRaining bool
 	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float64
+	SedimentCarryCapacity, SoilSuspensionRate, MaximalErodeDepth float64
 }
 
 type Terrain struct {
@@ -88,8 +89,8 @@ func (t *Terrain) Heightmap() []float32 {
 	for i, _ := range t.initial.waterHeight {
 		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i] // Shows the velocity for each cell.
 		//t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
-		t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
-		//t.heightmap[i] = t.initial.heightmap[i]
+		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
+		t.heightmap[i] = t.initial.heightmap[i]
 		//t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 100
 	}
 	return t.heightmap
@@ -111,7 +112,11 @@ func (t *Terrain) SimulationStep() {
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
 	for i := range initial.heightmap {
-		swap.waterHeight[i] += initial.rainRate[i] * t.state.TimeStep * t.state.WaterIncrementRate
+		if t.state.IsRaining {
+			swap.waterHeight[i] += initial.rainRate[i] * t.state.TimeStep * t.state.WaterIncrementRate
+		} else {
+			swap.waterHeight[i] += 0.000001
+		}
 	}
 
 	// Water cell outflow flux calculation
@@ -127,7 +132,7 @@ func (t *Terrain) SimulationStep() {
 			if WithinBounds(leftIndex, dimensions) {
 				var leftHeight = float64(initial.heightmap[leftIndex])
 				// Change in height between current cell and cell to the immediate left.
-				leftHeightDiff := landHeight + waterHeight - leftHeight - swap.waterHeight[leftIndex]
+				leftHeightDiff := (landHeight + waterHeight) - (leftHeight + swap.waterHeight[leftIndex])
 				leftOutflow = math.Max(0, iL + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * leftHeightDiff))
 			}
 
@@ -136,7 +141,7 @@ func (t *Terrain) SimulationStep() {
 			if WithinBounds(rightIndex, dimensions) {
 				var rightHeight = float64(initial.heightmap[rightIndex])
 				// Change in height between current cell and cell to the immediate left.
-				rightHeightDiff := landHeight + waterHeight - rightHeight - swap.waterHeight[rightIndex]
+				rightHeightDiff := (landHeight + waterHeight) - (rightHeight + swap.waterHeight[rightIndex])
 				rightOutflow = math.Max(0, iR + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * rightHeightDiff))
 			}
 
@@ -145,7 +150,7 @@ func (t *Terrain) SimulationStep() {
 			if WithinBounds(topIndex, dimensions) {
 				var topHeight = float64(initial.heightmap[topIndex])
 				// Change in height between current cell and cell to the immediate left.
-				topHeightDiff := landHeight + waterHeight - topHeight - swap.waterHeight[topIndex]
+				topHeightDiff := (landHeight + waterHeight) - (topHeight + swap.waterHeight[topIndex])
 				topOutflow = math.Max(0, iT + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * topHeightDiff))
 
 			}
@@ -155,7 +160,7 @@ func (t *Terrain) SimulationStep() {
 			if WithinBounds(bottomIndex, dimensions) {
 				var bottomHeight = float64(initial.heightmap[bottomIndex])
 				// Change in height between current cell and cell to the immediate left.
-				bottomHeightDiff := landHeight + waterHeight - bottomHeight - swap.waterHeight[bottomIndex]
+				bottomHeightDiff := (landHeight + waterHeight) - (bottomHeight + swap.waterHeight[bottomIndex])
 				bottomOutflow = math.Max(0, iB + t.state.TimeStep*t.state.PipeCrossSectionalArea*(t.state.GravitationalConstant*bottomHeightDiff))
 			}
 
@@ -172,10 +177,9 @@ func (t *Terrain) SimulationStep() {
 			if x == t.width {
 				rightOutflow = 0
 			}
-			
+
 			if y == t.height {
 				topOutflow = 0
-				println("h")
 			}
 
 			// Calculate outflow for all four outgoing pipes at f(x,y)
@@ -227,12 +231,13 @@ func (t *Terrain) SimulationStep() {
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
 
 			swap.waterHeight[i] += TimeStepWaterHeight
-			swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
+			swap.waterHeight[i] = math.Max(0, swap.waterHeight[i])
 		}
 
 	}
+
 	// Velocity Field calculation
-/*	for x := 0; x < t.width; x++ {
+	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i  = utils.ToIndex(x, y, t.width)
 			var li = utils.ToIndex(x - 1, y, t.width)
@@ -315,25 +320,25 @@ func (t *Terrain) SimulationStep() {
 			var normal = dxv.Cross(dyv)
 			var tiltAngle = math.Abs(normal.Y()) / normal.Len()
 			var sediment = t.initial.suspendedSediment[i]
-			var waterHeight = t.initial.waterHeight[i]
+			//var waterHeight = t.initial.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
 
-			var maximum = 1 - math.Max(0, MaximalErodeDepth - waterHeight) / MaximalErodeDepth
-			var carryCapacity = SedimentCarryCapacity * velocity * math.Min(0.05, tiltAngle) * maximum
+			//var maximum = 1 - math.Max(0, t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth
+			var carryCapacity = t.state.SedimentCarryCapacity * velocity * math.Min(0.05, tiltAngle)
 
 			if carryCapacity > sediment {
-				var delta = TimeStep * SoilSuspensionRate * (carryCapacity - sediment)
+				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
 				t.swap.heightmap[i] -= float32(delta)
 				t.swap.suspendedSediment[i] += delta
 				t.swap.waterHeight[i] += delta
 			} else {
-				var delta = TimeStep * SoilSuspensionRate * (sediment - carryCapacity)
+				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (sediment - carryCapacity)
 				t.swap.heightmap[i] += float32(delta)
 				t.swap.suspendedSediment[i] -= delta
 				t.swap.waterHeight[i] -= delta
 			}
 			
-			t.swap.waterHeight[i] *= 1 - EvaporationRate * TimeStep
+			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 		}
 
 		for x := 0; x < t.width; x++ {
@@ -341,7 +346,7 @@ func (t *Terrain) SimulationStep() {
 				var i = utils.ToIndex(x, y, t.width)
 				var pos = mgl64.Vec2{float64(x), float64(y)}
 				var vel = t.swap.velocity[i]
-				var dVel = pos.Sub(vel.Mul(TimeStep))
+				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
 	
 				var a = mgl64.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
 				var b = mgl64.Vec2{math.Ceil(dVel.X()), math.Ceil(dVel.Y())}
@@ -374,7 +379,7 @@ func (t *Terrain) SimulationStep() {
 				
 			}
 		}
-	}*/
+	}
 
 	*t.initial, *t.swap = *t.swap, *t.initial
 	// Cell sediment carry capacity calculation

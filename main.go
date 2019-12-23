@@ -1,5 +1,6 @@
 package main
 
+import "C"
 import (
 	"fmt"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -134,8 +135,8 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(256,256)
-	var midpointDisp = generators.NewMidPointDisplacement(256,256)
+	var testPlane = core.NewPlane(128,128)
+	var midpointDisp = generators.NewMidPointDisplacement(128,128)
 	midpointDisp.Generate(0.5, 0.5)
 	
 	var erosionState = terrain.ErosionState{
@@ -144,6 +145,10 @@ func main() {
 		PipeCrossSectionalArea: 20,
 		EvaporationRate:        0.2,
 		TimeStep:               0.01,
+		IsRaining: true,
+		SedimentCarryCapacity: 1.0,
+		SoilSuspensionRate: 0.5,
+		MaximalErodeDepth: 10.0,
 	}
 	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 
@@ -236,7 +241,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	state.Plane.M().Draw()
 
 	// GUI
-	simulBounds := nk.NkRect(50, 50, 300, 350)
+	simulBounds := nk.NkRect(50, 50, 350, 400)
 	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
 		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
 
@@ -287,10 +292,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newHeight != state.Height {
 					state.Height = newHeight
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f",  state.Height)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
-				}
 			}
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
@@ -298,10 +299,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				newSpread := nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
 				if newSpread != state.Spread {
 					state.Spread = newSpread
-				}
-				state.InfoValueString = fmt.Sprintf("%.1f",  state.Spread)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
@@ -311,26 +308,21 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newReduce != state.Reduce {
 					state.Reduce = newReduce
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f",  state.Reduce)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
-				}
 			}
 			nk.NkTreePop(ctx)
 		}
 		// Debug Text Input / Output
 
 		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Erosion", &state.ErosionTreeState) > 0 {
+			if nk.NkButtonLabel(ctx, "Toggle Rain") > 0 {
+				state.ErosionState.IsRaining = !state.ErosionState.IsRaining
+			}
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
 				nk.NkLabel(ctx, "Water Incrmt Rate", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.001, float32(state.ErosionState.WaterIncrementRate), 0.2, 0.0001)
 				if newRate != float32(state.ErosionState.WaterIncrementRate) {
 					state.ErosionState.WaterIncrementRate = float64(newRate)
-				}
-				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.WaterIncrementRate)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
 
@@ -341,10 +333,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newRate != float32(state.ErosionState.GravitationalConstant) {
 					state.ErosionState.GravitationalConstant = float64(newRate)
 				}
-				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.GravitationalConstant)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
-				}
 			}
 
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
@@ -353,10 +341,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.PipeCrossSectionalArea), 100.0, 1.0)
 				if newRate != float32(state.ErosionState.PipeCrossSectionalArea) {
 					state.ErosionState.PipeCrossSectionalArea = float64(newRate)
-				}
-				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.PipeCrossSectionalArea)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
 
@@ -367,22 +351,14 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newRate != float32(state.ErosionState.EvaporationRate) {
 					state.ErosionState.EvaporationRate = float64(newRate)
 				}
-				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.EvaporationRate)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
-				}
 			}
 
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
 				nk.NkLabel(ctx, "Timestep", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.TimeStep), 2.0, 0.001)
+				newRate := nk.NkSlideFloat(ctx, 0.00001, float32(state.ErosionState.TimeStep), 0.05, 0.0001)
 				if newRate != float32(state.ErosionState.TimeStep) {
 					state.ErosionState.TimeStep = float64(newRate)
-				}
-				state.InfoValueString = fmt.Sprintf("%.3f", state.ErosionState.TimeStep)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
 			
