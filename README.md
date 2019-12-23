@@ -5,7 +5,9 @@ Terrain generation coupled with hydraulic erosion on GPU. Comparison with same i
 
 ### Erosion
 
+- [ ] Refine existing code/method
 - [ ] Hydraulic Erosion implementation on GPU
+- [ ] Implement suggested improvements from referenced material
 - [ ] Research into Thermal Erosion
 
 
@@ -17,6 +19,7 @@ Terrain generation coupled with hydraulic erosion on GPU. Comparison with same i
 
 ### UI
 
+- [ ] Simulation statistics visualisation
 - [ ] NK label segfault workaround
 - [ ] Free floating camera
 
