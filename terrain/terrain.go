@@ -23,7 +23,7 @@ type LayerData struct {
 type ErosionState struct {
 	IsRaining bool
 	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float64
-	SedimentCarryCapacity, SoilSuspensionRate, MaximalErodeDepth float64
+	SedimentCarryCapacity, SoilSuspensionRate, SoilDepositionRate, MaximalErodeDepth float64
 }
 
 type Terrain struct {
@@ -91,7 +91,7 @@ func (t *Terrain) Heightmap() []float32 {
 		//t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
 		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
 		t.heightmap[i] = t.initial.heightmap[i]
-		//t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 100
+		//t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 10000 + 0.2
 	}
 	return t.heightmap
 }
@@ -315,30 +315,38 @@ func (t *Terrain) SimulationStep() {
 			var dx = float64(rh - lh)
 			var dy = float64(th - bh)
 
-			var dxv = mgl64.Vec3{2, dx, 0}
-			var dyv = mgl64.Vec3{0, dy, 2}
+			var dxv = mgl64.Vec3{1, dx, 0}
+			var dyv = mgl64.Vec3{0, dy, 1}
 			var normal = dxv.Cross(dyv)
 			var tiltAngle = math.Abs(normal.Y()) / normal.Len()
 			var sediment = t.initial.suspendedSediment[i]
-			//var waterHeight = t.initial.waterHeight[i]
+			var waterHeight = t.swap.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
 
-			//var maximum = 1 - math.Max(0, t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth
-			var carryCapacity = t.state.SedimentCarryCapacity * velocity * math.Min(0.05, tiltAngle)
+			//var maximum = math.Min(1, math.Max(0, 1 - math.Max(0, t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth))
 
+			var maximum float64 = 0
+			if waterHeight <= 0 {
+				maximum = 0
+			} else if waterHeight >= t.state.MaximalErodeDepth {
+				maximum = 1
+			} else {
+				maximum = 1 - (t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth
+			}
+
+			var carryCapacity = t.state.SedimentCarryCapacity * velocity * math.Min(tiltAngle, 0.05) * maximum
+			
 			if carryCapacity > sediment {
 				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
 				t.swap.heightmap[i] -= float32(delta)
 				t.swap.suspendedSediment[i] += delta
 				t.swap.waterHeight[i] += delta
 			} else {
-				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (sediment - carryCapacity)
+				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (sediment - carryCapacity)
 				t.swap.heightmap[i] += float32(delta)
 				t.swap.suspendedSediment[i] -= delta
 				t.swap.waterHeight[i] -= delta
 			}
-			
-			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 		}
 
 		for x := 0; x < t.width; x++ {
@@ -376,7 +384,8 @@ func (t *Terrain) SimulationStep() {
 					i2Val * dVel.X() * (1 - dVel.Y()) +
 					i3Val * (1 - dVel.X()) * dVel.Y() +
 					i4Val * dVel.X() * dVel.Y()
-				
+
+				t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 			}
 		}
 	}

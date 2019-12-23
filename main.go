@@ -143,10 +143,11 @@ func main() {
 		WaterIncrementRate:     0.012,
 		GravitationalConstant:  9.81,
 		PipeCrossSectionalArea: 20,
-		EvaporationRate:        0.2,
+		EvaporationRate:        0.015,
 		TimeStep:               0.01,
 		IsRaining: true,
 		SedimentCarryCapacity: 1.0,
+		SoilDepositionRate: 1.0,
 		SoilSuspensionRate: 0.5,
 		MaximalErodeDepth: 10.0,
 	}
