@@ -1,8 +1,14 @@
 # Independent Project 2019/20 - "Generating and manipulating procedural terrain"
-An exploration of different techniques used in the generation of realistic terrain and their implementation.
+Terrain generation coupled with hydraulic erosion on GPU. Comparison with same implementation on CPU.
+
+## Project as of 2019/12/23
+![Project Demo, showing Hydraulic Erosion](demo_2.png)
+[x] Reference Hydraulic Erosion implemention on CPU
 
 ## Project as of 2019/12/03
-![Project Demo](demo_1.png)
+[x] Midpoint Displacement
+[x] Rendering as mesh in OpenGL
+![Project Demo, showing midpoint displacement terrain gen](demo_1.png)
 
 ## Topics of Interest
 * Different noise generation techniques (diamond-square etc)
