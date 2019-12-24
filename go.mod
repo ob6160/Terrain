@@ -9,7 +9,7 @@ require (
 	github.com/golang-ui/nuklear v0.0.0-20190910214948-f0bd027f267b
 	github.com/oleiade/reflections v1.0.0 // indirect
 	github.com/stretchr/testify v1.4.0 // indirect
-	github.com/veandco/go-sdl2 v0.3.3 // indirect
+	github.com/veandco/go-sdl2 v0.3.3
 	github.com/xlab/android-go v0.0.0-20180723170811-ebf4d6dd1830 // indirect
 	github.com/xlab/closer v0.0.0-20190328110542-03326addb7c2
 	gopkg.in/oleiade/reflections.v1 v1.0.0

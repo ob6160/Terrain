@@ -10,12 +10,15 @@ uniform vec3 hitpos;
 layout (location = 0) in vec3 vert;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texcoord;
+layout (location = 3) in float inWaterHeight;
 
 out vec2 fragTexCoord;
 out vec3 vertex;
+out float vWaterHeight;
 
 void main() {
     fragTexCoord = texcoord;
     vertex = vert;
-    gl_Position = projection * camera * vec4(vec3(vert.x, height * vert.y, vert.z), 1.0);
+    vWaterHeight = inWaterHeight * 50.0;
+    gl_Position = projection * camera * vec4(vec3(vert.x, height * vert.y + inWaterHeight * height, vert.z), 1.0);
 }

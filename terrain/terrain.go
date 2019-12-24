@@ -1,29 +1,31 @@
 package terrain
 
 import (
-	"github.com/go-gl/mathgl/mgl64"
+	"github.com/go-gl/gl/v3.2-core/gl"
+	_ "github.com/go-gl/glfw/v3.2/glfw"
+	"github.com/go-gl/mathgl/mgl32"
+	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 	"math"
-	"math/rand"
 	_ "math/rand"
 )
 
 type LayerData struct {
 	heightmap []float32
-	outflowFlux []mgl64.Vec4
-	velocity []mgl64.Vec2
-	waterHeight []float64
-	suspendedSediment []float64
-	rainRate []float64
-	tiltMap []float64
+	outflowFlux []mgl32.Vec4
+	velocity []mgl32.Vec2
+	waterHeight []float32
+	suspendedSediment []float32
+	rainRate []float32
+	tiltMap []float32
 }
 
 
 type ErosionState struct {
 	IsRaining bool
-	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float64
-	SedimentCarryCapacity, SoilSuspensionRate, SoilDepositionRate, MaximalErodeDepth float64
+	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float32
+	SedimentCarryCapacity, SoilSuspensionRate, SoilDepositionRate, MaximalErodeDepth float32
 }
 
 type Terrain struct {
@@ -31,6 +33,7 @@ type Terrain struct {
 	swap *LayerData
 	state *ErosionState
 	width, height int
+	WaterHeightBuffer uint32
 	heightmap []float32
 	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
 }
@@ -40,23 +43,23 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 	initialCopy := make([]float32, (width + 1) * (height + 1))
 	copy(initialCopy, heightmap.Heightmap())
 	initial := LayerData{
-		rainRate:          make([]float64, (width+1)*(height+1)),
-		velocity:          make([]mgl64.Vec2, (width+1)*(height+1)),
+		rainRate:          make([]float32, (width+1)*(height+1)),
+		velocity:          make([]mgl32.Vec2, (width+1)*(height+1)),
 		// L=0, R=1, T=2, B=3
-		outflowFlux:       make([]mgl64.Vec4, (width+1)*(height+1)),
-		suspendedSediment: make([]float64, (width+1)*(height+1)),
-		waterHeight:       make([]float64, (width+1)*(height+1)),
+		outflowFlux:       make([]mgl32.Vec4, (width+1)*(height+1)),
+		suspendedSediment: make([]float32, (width+1)*(height+1)),
+		waterHeight:       make([]float32, (width+1)*(height+1)),
 		heightmap:        initialCopy,
 	}
 	
 	swapCopy := make([]float32, (width + 1) * (height + 1))
 	copy(swapCopy, heightmap.Heightmap())
 	swap := LayerData{
-		rainRate:          make([]float64, (width+1)*(height+1)),
-		velocity:          make([]mgl64.Vec2, (width+1)*(height+1)),
-		outflowFlux:       make([]mgl64.Vec4, (width+1)*(height+1)),
-		suspendedSediment: make([]float64, (width+1)*(height+1)),
-		waterHeight:       make([]float64, (width+1)*(height+1)),
+		rainRate:          make([]float32, (width+1)*(height+1)),
+		velocity:          make([]mgl32.Vec2, (width+1)*(height+1)),
+		outflowFlux:       make([]mgl32.Vec4, (width+1)*(height+1)),
+		suspendedSediment: make([]float32, (width+1)*(height+1)),
+		waterHeight:       make([]float32, (width+1)*(height+1)),
 		heightmap:        swapCopy,
 	}
 
@@ -69,7 +72,7 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 	}
 }
 
-func (t *Terrain) Initialise(heightmap []float32) {
+func (t *Terrain) Initialise(heightmap []float32, m *core.Mesh) {
 	t.heightmap = make([]float32, (t.width + 1) * (t.height + 1))
 	t.persistCopy =  make([]float32, (t.width + 1) * (t.height + 1))
 	
@@ -79,11 +82,19 @@ func (t *Terrain) Initialise(heightmap []float32) {
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
 	for i := range t.initial.rainRate {
-		var val = rand.Float64()
+		var val float32 = 0.2
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
+
+	m.Construct()
+	gl.GenBuffers(1, &t.WaterHeightBuffer)
+	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
+	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
+	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
+	gl.EnableVertexAttribArray(3)
 }
+
 
 func (t *Terrain) Heightmap() []float32 {
 	for i, _ := range t.initial.waterHeight {
@@ -103,11 +114,19 @@ func WithinBounds(index, dimensions int) bool {
 	return false
 }
 
+
 func (t *Terrain) SimulationStep() {
 	// == Shallow water flow simulation ==
 	var initial = *t.initial
 	var swap = *t.swap
 	var dimensions = len(initial.heightmap)
+
+
+	// Update OpenGL Buffers.
+	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
+	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
+	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
+	gl.EnableVertexAttribArray(3)
 
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
@@ -123,48 +142,51 @@ func (t *Terrain) SimulationStep() {
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i = utils.ToIndex(x, y, t.width)
-			var iL, iR, iT, iB = initial.outflowFlux[i].Elem()
-			var landHeight = float64(initial.heightmap[i])
+			var iL, iR, iT, iB = swap.outflowFlux[i].Elem()
+			var landHeight = initial.heightmap[i]
 			var waterHeight = swap.waterHeight[i]
 
+			var currentHeight = landHeight + waterHeight
+
+			var pressure = t.state.TimeStep*t.state.PipeCrossSectionalArea*t.state.GravitationalConstant
+			
 			var leftIndex = utils.ToIndex(x - 1, y, t.width)
 			var leftOutflow = 0.0
 			if WithinBounds(leftIndex, dimensions) {
-				var leftHeight = float64(initial.heightmap[leftIndex])
-				// Change in height between current cell and cell to the immediate left.
-				leftHeightDiff := (landHeight + waterHeight) - (leftHeight + swap.waterHeight[leftIndex])
-				leftOutflow = math.Max(0, iL + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * leftHeightDiff))
+				var leftHeight = initial.heightmap[leftIndex]
+				leftHeightDiff := currentHeight - (leftHeight + swap.waterHeight[leftIndex])
+				leftOutflow = math.Max(0.0, float64(iL + pressure * leftHeightDiff))
 			}
 
 			var rightIndex = utils.ToIndex(x + 1, y, t.width)
-			var rightOutflow float64 = 0
+			var rightOutflow = 0.0
 			if WithinBounds(rightIndex, dimensions) {
-				var rightHeight = float64(initial.heightmap[rightIndex])
-				// Change in height between current cell and cell to the immediate left.
-				rightHeightDiff := (landHeight + waterHeight) - (rightHeight + swap.waterHeight[rightIndex])
-				rightOutflow = math.Max(0, iR + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * rightHeightDiff))
+				var rightHeight = initial.heightmap[rightIndex]
+				rightHeightDiff := currentHeight - (rightHeight + swap.waterHeight[rightIndex])
+				rightOutflow = math.Max(0.0, float64(iR + pressure * rightHeightDiff))
 			}
 
 			var topIndex = utils.ToIndex(x, y - 1, t.width)
-			var topOutflow float64 = 0
+			var topOutflow = 0.0
 			if WithinBounds(topIndex, dimensions) {
-				var topHeight = float64(initial.heightmap[topIndex])
-				// Change in height between current cell and cell to the immediate left.
-				topHeightDiff := (landHeight + waterHeight) - (topHeight + swap.waterHeight[topIndex])
-				topOutflow = math.Max(0, iT + t.state.TimeStep * t.state.PipeCrossSectionalArea * (t.state.GravitationalConstant * topHeightDiff))
+				var topHeight = initial.heightmap[topIndex]
+				topHeightDiff := currentHeight - (topHeight + swap.waterHeight[topIndex])
+				topOutflow = math.Max(0, float64(iT + pressure * topHeightDiff))
 
 			}
 
 			var bottomIndex = utils.ToIndex(x, y + 1, t.width)
-			var bottomOutflow float64 = 0
+			var bottomOutflow = 0.0
 			if WithinBounds(bottomIndex, dimensions) {
-				var bottomHeight = float64(initial.heightmap[bottomIndex])
-				// Change in height between current cell and cell to the immediate left.
-				bottomHeightDiff := (landHeight + waterHeight) - (bottomHeight + swap.waterHeight[bottomIndex])
-				bottomOutflow = math.Max(0, iB + t.state.TimeStep*t.state.PipeCrossSectionalArea*(t.state.GravitationalConstant*bottomHeightDiff))
+				var bottomHeight = initial.heightmap[bottomIndex]
+				bottomHeightDiff := currentHeight - (bottomHeight + swap.waterHeight[bottomIndex])
+				bottomOutflow = math.Max(0, float64(iB + pressure * bottomHeightDiff))
 			}
 
-			var scaleFactor = math.Min(1, waterHeight / ((leftOutflow + rightOutflow + topOutflow + bottomOutflow) * t.state.TimeStep))
+			// Find k
+			var sumFluxOut = leftOutflow + rightOutflow + topOutflow + bottomOutflow
+			var scaleFactor = math.Min(1.0,
+				float64(waterHeight) / (sumFluxOut*float64(t.state.TimeStep)))
 
 			if x == 0  {
 				leftOutflow = 0
@@ -174,20 +196,20 @@ func (t *Terrain) SimulationStep() {
 				bottomOutflow = 0
 			}
 			
-			if x == t.width {
+			if x == t.width - 1 {
 				rightOutflow = 0
 			}
 
-			if y == t.height {
+			if y == t.height - 1 {
 				topOutflow = 0
 			}
 
 			// Calculate outflow for all four outgoing pipes at f(x,y)
-			swap.outflowFlux[i] = mgl64.Vec4{
-				math.Max(0, leftOutflow * scaleFactor),
-				math.Max(0, rightOutflow * scaleFactor),
-				math.Max(0, topOutflow * scaleFactor),
-				math.Max(0, bottomOutflow * scaleFactor),
+			swap.outflowFlux[i] = mgl32.Vec4{
+				float32(math.Max(0, leftOutflow * scaleFactor)),
+				float32(math.Max(0, rightOutflow * scaleFactor)),
+				float32(math.Max(0, topOutflow * scaleFactor)),
+				float32(math.Max(0, bottomOutflow * scaleFactor)),
 			}
 		}
 	}
@@ -196,44 +218,44 @@ func (t *Terrain) SimulationStep() {
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i = utils.ToIndex(x, y, t.width)
-			// Calculate the outflow.
-			var o1, o2, o3, o4 = swap.outflowFlux[i].Elem()
-			var outFlow = o1 + o2 + o3 + o4
+
 			// Calculate inflow..
 			// Right Pipe of the Left Neighbour + Left Pipe of the Right Neighbour + ...
 			// TODO: Can we make a safe function that wraps out of bounds accesses on the grid?
 			var leftIndex = utils.ToIndex(x - 1, y, t.width)
-			var leftCellInflow float64 = 0
+			var leftCellInflow float32 = 0
 			if WithinBounds(leftIndex, dimensions) {
 				_, leftCellInflow, _, _ = swap.outflowFlux[leftIndex].Elem()
 			}
 
 			var rightIndex = utils.ToIndex(x + 1, y, t.width)
-			var rightCellInflow float64 = 0
+			var rightCellInflow float32 = 0
 			if WithinBounds(rightIndex, dimensions) {
 				rightCellInflow, _, _, _ = swap.outflowFlux[rightIndex].Elem()
 			}
 
 			var topIndex = utils.ToIndex(x, y - 1, t.width)
-			var topCellInflow float64 = 0
+			var topCellInflow float32 = 0
 			if WithinBounds(topIndex, dimensions) {
 				_, _, _, topCellInflow = swap.outflowFlux[topIndex].Elem()
 			}
 			
 			var bottomIndex = utils.ToIndex(x, y + 1, t.width)
-			var bottomCellInflow float64 = 0
+			var bottomCellInflow float32 = 0
 			if WithinBounds(bottomIndex, dimensions) {
 				_, _, bottomCellInflow, _ = swap.outflowFlux[bottomIndex].Elem()
 			}
 
+			// Calculate the outflow.
+			var o1, o2, o3, o4 = swap.outflowFlux[i].Elem()
+
+			var outFlow = o1 + o2 + o3 + o4
 			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
 
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
 
 			swap.waterHeight[i] += TimeStepWaterHeight
-			swap.waterHeight[i] = math.Max(0, swap.waterHeight[i])
 		}
-
 	}
 
 	// Velocity Field calculation
@@ -247,32 +269,38 @@ func (t *Terrain) SimulationStep() {
 
 			var centreLeft, centreRight, centreTop, centreBottom = swap.outflowFlux[i].Elem()
 
-			var leftInFlow float64 = 0
+			var leftInFlow float32 = 0
 			if WithinBounds(li, dimensions) {
 				_, leftInFlow, _, _ = swap.outflowFlux[li].Elem()
 			}
 
-			var rightInFlow float64 = 0
+			var rightInFlow float32 = 0
 			if WithinBounds(ri, dimensions) {
 				rightInFlow, _, _, _ = swap.outflowFlux[ri].Elem()
 			}
 
-			var topInFlow float64 = 0
+			var topInFlow float32 = 0
 			if WithinBounds(ti, dimensions) {
 				_, _, _, topInFlow = swap.outflowFlux[ti].Elem()
 			}
 
-			var bottomInFlow float64 = 0
+			var bottomInFlow float32 = 0
 			if WithinBounds(bi, dimensions) {
 				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
 			}
 
-			var velX = (leftInFlow - centreLeft + centreRight - rightInFlow) / 2
-			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow) / 2
-			t.swap.velocity[i] = mgl64.Vec2{velX, velY}
+			var velX = (leftInFlow - centreLeft - centreRight - rightInFlow) * 0.5
+			var velY = (topInFlow - centreTop - centreBottom - bottomInFlow) * 0.5
+			t.swap.velocity[i] = mgl32.Vec2{velX, velY}
+			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 		}
 	}
 
+
+
+/*
+	waterCount := 0.0
+	waterVals := 0.0
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			// Plan:
@@ -312,11 +340,11 @@ func (t *Terrain) SimulationStep() {
 				bh = t.initial.heightmap[bi]
 			}
 
-			var dx = float64(rh - lh)
-			var dy = float64(th - bh)
+			var dx = float32(rh - lh)
+			var dy = float32(th - bh)
 
-			var dxv = mgl64.Vec3{1, dx, 0}
-			var dyv = mgl64.Vec3{0, dy, 1}
+			var dxv = mgl32.Vec3{2, dx, 0}
+			var dyv = mgl32.Vec3{0, dy, 2}
 			var normal = dxv.Cross(dyv)
 			var tiltAngle = math.Abs(normal.Y()) / normal.Len()
 			var sediment = t.initial.suspendedSediment[i]
@@ -324,8 +352,9 @@ func (t *Terrain) SimulationStep() {
 			var velocity = t.swap.velocity[i].Len()
 
 			//var maximum = math.Min(1, math.Max(0, 1 - math.Max(0, t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth))
-
-			var maximum float64 = 0
+			waterVals += waterHeight
+			waterCount++
+			var maximum float32 = 0
 			if waterHeight <= 0 {
 				maximum = 0
 			} else if waterHeight >= t.state.MaximalErodeDepth {
@@ -352,12 +381,12 @@ func (t *Terrain) SimulationStep() {
 		for x := 0; x < t.width; x++ {
 			for y := 0; y < t.height; y++ {
 				var i = utils.ToIndex(x, y, t.width)
-				var pos = mgl64.Vec2{float64(x), float64(y)}
+				var pos = mgl32.Vec2{float32(x), float32(y)}
 				var vel = t.swap.velocity[i]
 				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
 	
-				var a = mgl64.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
-				var b = mgl64.Vec2{math.Ceil(dVel.X()), math.Ceil(dVel.Y())}
+				var a = mgl32.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
+				var b = mgl32.Vec2{a.X() + 1.0, a.Y() + 1.0}
 				
 				var i1Val = 0.0
 				i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
@@ -388,7 +417,7 @@ func (t *Terrain) SimulationStep() {
 				t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 			}
 		}
-	}
+	}*/
 
 	*t.initial, *t.swap = *t.swap, *t.initial
 	// Cell sediment carry capacity calculation

@@ -14,6 +14,10 @@ type Mesh struct {
 	RenderMode uint32
 }
 
+func (m* Mesh) Bind() {
+	gl.BindVertexArray(m.vao)
+}
+
 func (m Mesh) Draw() {
 	gl.BindVertexArray(m.vao)
 	gl.ActiveTexture(gl.TEXTURE0)
@@ -57,5 +61,4 @@ func (m *Mesh) Construct() {
 	gl.EnableVertexAttribArray(2)
 	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, gl.PtrOffset(6*4))
 
-	gl.BindVertexArray(0)
 }

@@ -91,7 +91,6 @@ func setupUniforms(state *State) {
 	// Uniforms
 	gl.UseProgram(program)
 
-
 	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
 	//state.Projection = mgl32.Ortho(-state.Scale, state.Scale, -state.Scale, state.Scale, 0.01, 10000.0)
 	projectionUniform := gl.GetUniformLocation(program, gl.Str("projection\x00"))
@@ -135,21 +134,21 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(128,128)
-	var midpointDisp = generators.NewMidPointDisplacement(128,128)
+	var testPlane = core.NewPlane(256,256)
+	var midpointDisp = generators.NewMidPointDisplacement(256,256)
 	midpointDisp.Generate(0.5, 0.5)
-	
+
 	var erosionState = terrain.ErosionState{
 		WaterIncrementRate:     0.012,
 		GravitationalConstant:  9.81,
 		PipeCrossSectionalArea: 20,
 		EvaporationRate:        0.015,
-		TimeStep:               0.01,
+		TimeStep:               0.002,
 		IsRaining: true,
 		SedimentCarryCapacity: 1.0,
 		SoilDepositionRate: 1.0,
 		SoilSuspensionRate: 0.5,
-		MaximalErodeDepth: 10.0,
+		MaximalErodeDepth: 0.001,
 	}
 	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 
@@ -173,18 +172,21 @@ func main() {
 		InfoValueString: "",
 	}
 
-
-	// Setup terrain
-	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
-	testPlane.Construct(midpointDisp)
-
-
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
 		panic(err)
 	}
 	state.Program = program
 	setupUniforms(state)
+
+	// Setup terrain
+	state.MidpointGen.Generate(state.Spread, state.Reduce)
+	state.TerrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
+
+	state.Plane.Construct(midpointDisp)
+	state.TerrainEroder.Initialise(midpointDisp.Heightmap(), state.Plane.M())
+
+
 
 	atlas := nk.NewFontAtlas()
 	nk.NkFontStashBegin(&atlas)
@@ -220,14 +222,15 @@ func main() {
 }
 
 func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
-	nk.NkPlatformNewFrame()
+
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-	state.TerrainEroder.SimulationStep()
 	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
 	state.Plane.Construct(state.MidpointGen)
+	state.TerrainEroder.SimulationStep()
+
 
 	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
 	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
@@ -241,6 +244,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 
 	state.Plane.M().Draw()
 
+	nk.NkPlatformNewFrame()
 	// GUI
 	simulBounds := nk.NkRect(50, 50, 350, 400)
 	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
@@ -257,10 +261,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				if newAngle != state.Angle {
 					state.Angle = newAngle
 				}
-				state.InfoValueString = fmt.Sprintf("%.1f", state.Angle)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
-				}
 			}
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
@@ -268,10 +268,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				newFOV := nk.NkSlideFloat(ctx, 0.0, state.FOV, 120.0, 1.0)
 				if newFOV != state.FOV {
 					state.FOV = newFOV
-				}
-				state.InfoValueString = fmt.Sprintf("%.1f", newFOV)
-				if len(state.InfoValueString) != 0 {
-					nk.NkLabel(ctx, state.InfoValueString, nk.TextAlignRight)
 				}
 			}
 			nk.NkTreePop(ctx)
@@ -282,7 +278,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
 				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen, state.ErosionState)
-				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
+				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap(), state.Plane.M())
 				state.Plane.Construct(state.MidpointGen)
 			}
 			// TODO: Abstract out into a function so we reduce code repetition.
@@ -323,7 +319,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				nk.NkLabel(ctx, "Water Incrmt Rate", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.001, float32(state.ErosionState.WaterIncrementRate), 0.2, 0.0001)
 				if newRate != float32(state.ErosionState.WaterIncrementRate) {
-					state.ErosionState.WaterIncrementRate = float64(newRate)
+					state.ErosionState.WaterIncrementRate = newRate
 				}
 			}
 
@@ -332,7 +328,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				nk.NkLabel(ctx, "Gravitational Constant", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.GravitationalConstant), 20.0, 0.1)
 				if newRate != float32(state.ErosionState.GravitationalConstant) {
-					state.ErosionState.GravitationalConstant = float64(newRate)
+					state.ErosionState.GravitationalConstant = newRate
 				}
 			}
 
@@ -341,7 +337,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				nk.NkLabel(ctx, "Pipe Cross Section Area", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.PipeCrossSectionalArea), 100.0, 1.0)
 				if newRate != float32(state.ErosionState.PipeCrossSectionalArea) {
-					state.ErosionState.PipeCrossSectionalArea = float64(newRate)
+					state.ErosionState.PipeCrossSectionalArea = newRate
 				}
 			}
 
@@ -350,7 +346,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				nk.NkLabel(ctx, "Evaporation Rate", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.EvaporationRate), 2.0, 0.01)
 				if newRate != float32(state.ErosionState.EvaporationRate) {
-					state.ErosionState.EvaporationRate = float64(newRate)
+					state.ErosionState.EvaporationRate = newRate
 				}
 			}
 
@@ -359,7 +355,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				nk.NkLabel(ctx, "Timestep", nk.TextAlignLeft)
 				newRate := nk.NkSlideFloat(ctx, 0.00001, float32(state.ErosionState.TimeStep), 0.05, 0.0001)
 				if newRate != float32(state.ErosionState.TimeStep) {
-					state.ErosionState.TimeStep = float64(newRate)
+					state.ErosionState.TimeStep = newRate
 				}
 			}
 			
