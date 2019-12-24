@@ -20,5 +20,11 @@ void main() {
     fragTexCoord = texcoord;
     vertex = vert;
     vWaterHeight = inWaterHeight * 50.0;
-    gl_Position = projection * camera * vec4(vec3(vert.x, height * vert.y + inWaterHeight * height, vert.z), 1.0);
+
+    float waterHeightMod = 0.0;
+    if(inWaterHeight > 0.0) {
+        waterHeightMod = inWaterHeight * height;
+    }
+
+    gl_Position = projection * camera * vec4(vec3(vert.x, height * vert.y + waterHeightMod, vert.z), 1.0);
 }

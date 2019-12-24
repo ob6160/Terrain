@@ -82,11 +82,17 @@ func (t *Terrain) Initialise(heightmap []float32, m *core.Mesh) {
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
 	for i := range t.initial.rainRate {
-		var val float32 = 0.2
+		var val float32 = 0.00001
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
-
+	for x := 100; x < 120; x++ {
+		for y := 100; y < 120; y++ {
+			var i = utils.ToIndex(x, y, t.width)
+			t.initial.rainRate[i] = 0.9
+			t.swap.rainRate[i] = 0.9
+		}
+	}
 	m.Construct()
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
@@ -133,8 +139,6 @@ func (t *Terrain) SimulationStep() {
 	for i := range initial.heightmap {
 		if t.state.IsRaining {
 			swap.waterHeight[i] += initial.rainRate[i] * t.state.TimeStep * t.state.WaterIncrementRate
-		} else {
-			swap.waterHeight[i] += 0.000001
 		}
 	}
 
@@ -183,26 +187,26 @@ func (t *Terrain) SimulationStep() {
 				bottomOutflow = math.Max(0, float64(iB + pressure * bottomHeightDiff))
 			}
 
+			if x == 0  {
+				rightOutflow = 0.0
+			}
+
+			if y == 0 {
+				topOutflow = 0
+			}
+
+			if x == t.width - 1 {
+				leftOutflow = 0.0
+			}
+
+			if y == t.height - 1 {
+				bottomOutflow = 0.0
+			}
+
 			// Find k
 			var sumFluxOut = leftOutflow + rightOutflow + topOutflow + bottomOutflow
 			var scaleFactor = math.Min(1.0,
 				float64(waterHeight) / (sumFluxOut*float64(t.state.TimeStep)))
-
-			if x == 0  {
-				leftOutflow = 0
-			}
-			
-			if y == 0 {
-				bottomOutflow = 0
-			}
-			
-			if x == t.width - 1 {
-				rightOutflow = 0
-			}
-
-			if y == t.height - 1 {
-				topOutflow = 0
-			}
 
 			// Calculate outflow for all four outgoing pipes at f(x,y)
 			swap.outflowFlux[i] = mgl32.Vec4{
@@ -253,8 +257,8 @@ func (t *Terrain) SimulationStep() {
 			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
 
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
-
 			swap.waterHeight[i] += TimeStepWaterHeight
+			//t.swap.waterHeight[i] = float32(math.Max(0.0, float64(swap.waterHeight[i])))
 		}
 	}
 
@@ -292,6 +296,7 @@ func (t *Terrain) SimulationStep() {
 			var velX = (leftInFlow - centreLeft - centreRight - rightInFlow) * 0.5
 			var velY = (topInFlow - centreTop - centreBottom - bottomInFlow) * 0.5
 			t.swap.velocity[i] = mgl32.Vec2{velX, velY}
+
 			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 		}
 	}
