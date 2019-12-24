@@ -11,15 +11,18 @@ layout (location = 0) in vec3 vert;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texcoord;
 layout (location = 3) in float inWaterHeight;
+layout (location = 4) in float inSediment;
 
 out vec2 fragTexCoord;
 out vec3 vertex;
 out float vWaterHeight;
+out float vSediment;
 
 void main() {
     fragTexCoord = texcoord;
     vertex = vert;
     vWaterHeight = inWaterHeight * 50.0;
+    vSediment = inSediment;
 
     float waterHeightMod = 0.0;
     if(inWaterHeight > 0.0) {

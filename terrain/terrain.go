@@ -33,7 +33,7 @@ type Terrain struct {
 	swap *LayerData
 	state *ErosionState
 	width, height int
-	WaterHeightBuffer uint32
+	WaterHeightBuffer, SedimentBuffer uint32
 	heightmap []float32
 	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
 }
@@ -82,23 +82,29 @@ func (t *Terrain) Initialise(heightmap []float32, m *core.Mesh) {
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
 	for i := range t.initial.rainRate {
-		var val float32 = 0.00001
+		var val float32 = 0.1
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
-	for x := 100; x < 120; x++ {
-		for y := 100; y < 120; y++ {
-			var i = utils.ToIndex(x, y, t.width)
-			t.initial.rainRate[i] = 0.9
-			t.swap.rainRate[i] = 0.9
-		}
-	}
+	//for x := 100; x < 120; x++ {
+	//	for y := 100; y < 120; y++ {
+	//		var i = utils.ToIndex(x, y, t.width)
+	//		t.initial.rainRate[i] = 0.9
+	//		t.swap.rainRate[i] = 0.9
+	//	}
+	//}
 	m.Construct()
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
 	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
 	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
 	gl.EnableVertexAttribArray(3)
+
+	gl.GenBuffers(1, &t.SedimentBuffer)
+	gl.BindBuffer(gl.ARRAY_BUFFER, t.SedimentBuffer)
+	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
+	gl.VertexAttribPointer(4, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
+	gl.EnableVertexAttribArray(4)
 }
 
 
@@ -133,6 +139,11 @@ func (t *Terrain) SimulationStep() {
 	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
 	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
 	gl.EnableVertexAttribArray(3)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, t.SedimentBuffer)
+	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
+	gl.VertexAttribPointer(4, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
+	gl.EnableVertexAttribArray(4)
 
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
@@ -258,7 +269,6 @@ func (t *Terrain) SimulationStep() {
 
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
 			swap.waterHeight[i] += TimeStepWaterHeight
-			//t.swap.waterHeight[i] = float32(math.Max(0.0, float64(swap.waterHeight[i])))
 		}
 	}
 
@@ -293,19 +303,13 @@ func (t *Terrain) SimulationStep() {
 				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
 			}
 
-			var velX = (leftInFlow - centreLeft - centreRight - rightInFlow) * 0.5
-			var velY = (topInFlow - centreTop - centreBottom - bottomInFlow) * 0.5
+			var velX = (leftInFlow - centreLeft - centreRight + rightInFlow) * 0.5
+			var velY = (topInFlow - centreTop - centreBottom + bottomInFlow) * 0.5
 			t.swap.velocity[i] = mgl32.Vec2{velX, velY}
 
-			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
 		}
 	}
 
-
-
-/*
-	waterCount := 0.0
-	waterVals := 0.0
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			// Plan:
@@ -345,20 +349,17 @@ func (t *Terrain) SimulationStep() {
 				bh = t.initial.heightmap[bi]
 			}
 
-			var dx = float32(rh - lh)
-			var dy = float32(th - bh)
+			var dx = rh - lh
+			var dy = th - bh
 
 			var dxv = mgl32.Vec3{2, dx, 0}
 			var dyv = mgl32.Vec3{0, dy, 2}
 			var normal = dxv.Cross(dyv)
-			var tiltAngle = math.Abs(normal.Y()) / normal.Len()
+			var tiltAngle = math.Abs(float64(normal.Y())) / float64(normal.Len())
 			var sediment = t.initial.suspendedSediment[i]
 			var waterHeight = t.swap.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
 
-			//var maximum = math.Min(1, math.Max(0, 1 - math.Max(0, t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth))
-			waterVals += waterHeight
-			waterCount++
 			var maximum float32 = 0
 			if waterHeight <= 0 {
 				maximum = 0
@@ -368,61 +369,64 @@ func (t *Terrain) SimulationStep() {
 				maximum = 1 - (t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth
 			}
 
-			var carryCapacity = t.state.SedimentCarryCapacity * velocity * math.Min(tiltAngle, 0.05) * maximum
+			var carryCapacity = t.state.SedimentCarryCapacity * velocity * float32(math.Min(tiltAngle, 0.05)) * maximum
 			
 			if carryCapacity > sediment {
 				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
-				t.swap.heightmap[i] -= float32(delta)
+				t.swap.heightmap[i] -= delta
 				t.swap.suspendedSediment[i] += delta
 				t.swap.waterHeight[i] += delta
 			} else {
 				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (sediment - carryCapacity)
-				t.swap.heightmap[i] += float32(delta)
+				t.swap.heightmap[i] += delta
 				t.swap.suspendedSediment[i] -= delta
 				t.swap.waterHeight[i] -= delta
 			}
+
+			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
+			t.swap.waterHeight[i] = float32(math.Max(0, float64(t.swap.waterHeight[i])))
 		}
 
 		for x := 0; x < t.width; x++ {
 			for y := 0; y < t.height; y++ {
-				var i = utils.ToIndex(x, y, t.width)
-				var pos = mgl32.Vec2{float32(x), float32(y)}
-				var vel = t.swap.velocity[i]
-				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
-	
-				var a = mgl32.Vec2{math.Floor(dVel.X()), math.Floor(dVel.Y())}
-				var b = mgl32.Vec2{a.X() + 1.0, a.Y() + 1.0}
+				//var i = utils.ToIndex(x, y, t.width)
+				//var pos = mgl32.Vec2{float32(x), float32(y)}
+				//var vel = t.swap.velocity[i]
+				//var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
+				//
+				//var a = mgl32.Vec2{float32(math.Floor(float64(dVel.X()))), float32(math.Floor(float64(dVel.Y())))}
+				//var b = mgl32.Vec2{a.X() + 1.0, a.Y() + 1.0}
+				//
+				//var i1Val float32 = 0.0
+				//i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
+				//if WithinBounds(i1, dimensions) {
+				//	i1Val = t.initial.suspendedSediment[i1]
+				//}
+				//var i2Val float32 = 0.0
+				//i2 := utils.ToIndex(int(b.X()), int(a.Y()), t.width)
+				//if WithinBounds(i2, dimensions) {
+				//	i2Val = t.initial.suspendedSediment[i2]
+				//}
+				//var i3Val float32 = 0.0
+				//i3 := utils.ToIndex(int(a.X()), int(b.Y()), t.width)
+				//if WithinBounds(i3, dimensions) {
+				//	i3Val = t.initial.suspendedSediment[i3]
+				//}
+				//var i4Val float32 = 0.0
+				//i4 := utils.ToIndex(int(b.X()), int(b.Y()), t.width)
+				//if WithinBounds(i4, dimensions) {
+				//	i4Val = t.initial.suspendedSediment[i4]
+				//}
 				
-				var i1Val = 0.0
-				i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
-				if WithinBounds(i1, dimensions) {
-					i1Val = t.initial.suspendedSediment[i1]
-				}
-				var i2Val = 0.0
-				i2 := utils.ToIndex(int(b.X()), int(a.Y()), t.width)
-				if WithinBounds(i2, dimensions) {
-					i2Val = t.initial.suspendedSediment[i2]
-				}
-				var i3Val = 0.0
-				i3 := utils.ToIndex(int(a.X()), int(b.Y()), t.width)
-				if WithinBounds(i3, dimensions) {
-					i3Val = t.initial.suspendedSediment[i3]
-				}
-				var i4Val = 0.0
-				i4 := utils.ToIndex(int(b.X()), int(b.Y()), t.width)
-				if WithinBounds(i4, dimensions) {
-					i4Val = t.initial.suspendedSediment[i4]
-				}
-				
-				t.swap.suspendedSediment[i] = i1Val * (1 - dVel.X()) * (1- dVel.Y()) +
-					i2Val * dVel.X() * (1 - dVel.Y()) +
-					i3Val * (1 - dVel.X()) * dVel.Y() +
-					i4Val * dVel.X() * dVel.Y()
+				//t.swap.suspendedSediment[i] = i1Val * (1 - dVel.X()) * (1- dVel.Y()) +
+				//	i2Val * dVel.X() * (1 - dVel.Y()) +
+				//	i3Val * (1 - dVel.X()) * dVel.Y() +
+				//	i4Val * dVel.X() * dVel.Y()
 
-				t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
+
 			}
 		}
-	}*/
+	}
 
 	*t.initial, *t.swap = *t.swap, *t.initial
 	// Cell sediment carry capacity calculation

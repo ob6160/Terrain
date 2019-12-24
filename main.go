@@ -134,8 +134,8 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(256,256)
-	var midpointDisp = generators.NewMidPointDisplacement(256,256)
+	var testPlane = core.NewPlane(128,128)
+	var midpointDisp = generators.NewMidPointDisplacement(128,128)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = terrain.ErosionState{
@@ -145,9 +145,9 @@ func main() {
 		EvaporationRate:        0.015,
 		TimeStep:               0.002,
 		IsRaining: true,
-		SedimentCarryCapacity: 1.0,
-		SoilDepositionRate: 1.0,
-		SoilSuspensionRate: 0.5,
+		SedimentCarryCapacity: 12.0,
+		SoilDepositionRate: 0.012,
+		SoilSuspensionRate: 0.012,
 		MaximalErodeDepth: 0.001,
 	}
 	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
