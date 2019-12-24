@@ -145,10 +145,10 @@ func main() {
 		EvaporationRate:        0.015,
 		TimeStep:               0.002,
 		IsRaining: true,
-		SedimentCarryCapacity: 12.0,
-		SoilDepositionRate: 0.012,
-		SoilSuspensionRate: 0.012,
-		MaximalErodeDepth: 0.001,
+		SedimentCarryCapacity: 1.0,
+		SoilDepositionRate: 1.0,
+		SoilSuspensionRate: 0.5,
+		MaximalErodeDepth: 0.004,
 	}
 	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 
