@@ -62,9 +62,11 @@ func (m *Mesh) Construct() {
 	// Texture Coords
 	gl.EnableVertexAttribArray(2)
 	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 9 * 4, gl.PtrOffset(6*4))
-	gl.BindVertexArray(0)
-	
+
+
 	// Lookup Index
 	gl.EnableVertexAttribArray(3)
 	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 9 * 4, gl.PtrOffset(8 * 4))
+
+	gl.BindVertexArray(0)
 }

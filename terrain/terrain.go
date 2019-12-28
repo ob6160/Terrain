@@ -32,6 +32,7 @@ type Terrain struct {
 	state *ErosionState
 	width, height int
 	WaterHeightBuffer, WaterHeightBufferTexture uint32
+	HeightmapBuffer, HeightmapBufferTexture uint32
 	heightmap []float32
 	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
 }
@@ -85,24 +86,18 @@ func (t *Terrain) Initialise(heightmap []float32) {
 		t.swap.rainRate[i] = val
 	}
 
+	gl.GenBuffers(1, &t.HeightmapBuffer)
+	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap), gl.STATIC_DRAW)
+	gl.GenTextures(1, &t.HeightmapBufferTexture)
+	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
+	
 	// Setup water height buffer and associated storage.
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
 	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
 	gl.GenTextures(1, &t.WaterHeightBufferTexture)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
-}
-
-
-func (t *Terrain) Heightmap() []float32 {
-	for i, _ := range t.initial.waterHeight {
-		//t.heightmap[i] = float32(t.initial.velocity[i].Len()*5) + t.persistCopy[i] // Shows the velocity for each cell.
-		//t.heightmap[i] = t.persistCopy[i] + float32(t.initial.waterHeight[i]) // Shows the height of the water overlayed on terrain
-		//t.heightmap[i] = float32(t.initial.outflowFlux[i].Len() * 1)// Shows the outflow flux for each cell.
-		t.heightmap[i] = t.initial.heightmap[i]
-		//t.heightmap[i] = float32(t.initial.suspendedSediment[i]) * 10000 + 0.2
-	}
-	return t.heightmap
 }
 
 func WithinBounds(index, dimensions int) bool {
@@ -119,15 +114,23 @@ func (t *Terrain) SimulationStep() {
 	var swap = *t.swap
 	var dimensions = len(initial.heightmap)
 
-
+	// Update heightmap buffer data.
+	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap))
+	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 	// Update water height buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
 	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight))
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
-	// Update the associated texture.
+
+	// Update the associated textures.
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_BUFFER, t.WaterHeightBufferTexture)
 	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.R32F, t.WaterHeightBuffer)
+
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_BUFFER, t.HeightmapBufferTexture)
+	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.R32F, t.HeightmapBuffer)
 
 
 	// Water Height Update (from rainRate array or constant water sources).
@@ -258,7 +261,7 @@ func (t *Terrain) SimulationStep() {
 			t.swap.waterHeight[i] = float32(math.Max(0, float64(t.swap.waterHeight[i])))
 		}
 	}
-/*
+
 	// Velocity Field calculation
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
@@ -358,16 +361,14 @@ func (t *Terrain) SimulationStep() {
 
 			var carryCapacity = t.state.SedimentCarryCapacity * velocity * float32(math.Min(tiltAngle, 0.05)) * maximum
 			
-			if carryCapacity > sediment {
-				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
-				t.swap.heightmap[i] -= delta
-				t.swap.suspendedSediment[i] += delta
-				t.swap.waterHeight[i] += delta
-			} else {
+			if sediment > carryCapacity {
 				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (sediment - carryCapacity)
-				t.swap.heightmap[i] += delta
+				t.initial.heightmap[i] += delta
 				t.swap.suspendedSediment[i] -= delta
-				t.swap.waterHeight[i] -= delta
+			} else {
+				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (sediment - carryCapacity)
+				t.initial.heightmap[i] -= delta
+				t.swap.suspendedSediment[i] += delta
 			}
 
 			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
@@ -412,7 +413,7 @@ func (t *Terrain) SimulationStep() {
 					i4Val * dVel.X() * dVel.Y()
 			}
 		}
-	}*/
+	}
 
 
 

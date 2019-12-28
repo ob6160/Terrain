@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/go-gl/gl/v3.2-core/gl"
-	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 	"math"
 )
@@ -26,12 +25,15 @@ func NewPlane(rows int, cols int) *Plane {
 	return &newPlane
 }
 
-func (p *Plane) Construct(generator generators.TerrainGenerator) {
+
+
+func (p *Plane) Construct(sourceWidth, sourceHeight int) {
+
 	var vertices = &p.m.Vertices
-	var genW, genH = generator.Dimensions()
+
 	var dW, dH float64
-	dW = float64(genW) / float64(p.rows)
-	dH = float64(genH) / float64(p.cols)
+	dW = float64(sourceWidth) / float64(p.rows)
+	dH = float64(sourceHeight) / float64(p.cols)
 	
 	vertIndex := 0
 
@@ -40,27 +42,26 @@ func (p *Plane) Construct(generator generators.TerrainGenerator) {
 			// Billinear Interpolation on height
 			lowSampleX := int(math.Floor(float64(x) * (dW)))
 			lowSampleY := int(math.Floor(float64(y) * (dH)))
-			hiSampleX := int(math.Ceil(float64(x) * (dW)))
-			hiSampleY := int(math.Ceil(float64(y) * (dH)))
-
-			q00, _ := generator.Get(utils.Point{X: lowSampleX, Y: lowSampleY})
-			q10, _ := generator.Get(utils.Point{X: hiSampleX, Y: lowSampleY})
-			q01, _ := generator.Get(utils.Point{X: lowSampleX, Y: hiSampleY})
-			q11, _ := generator.Get(utils.Point{X: hiSampleX, Y: hiSampleY})
-
-			dX := float32(float64(x)*dW - float64(lowSampleX))
-			dY := float32(float64(y)*dH - float64(lowSampleY))
-			// TODO: Refactor into function for reuse.
-			lerped := q00 * (1 - dX) * (1 - dY) +
-				q10 * dX * (1 - dY) +
-				q01 * (1 - dX) * dY +
-				q11 * dX * dY
+			//hiSampleX := int(math.Ceil(float64(x) * (dW)))
+			//hiSampleY := int(math.Ceil(float64(y) * (dH)))
+			//
+			//q00, _ := generator.Get(utils.Point{X: lowSampleX, Y: lowSampleY})
+			//q10, _ := generator.Get(utils.Point{X: hiSampleX, Y: lowSampleY})
+			//q01, _ := generator.Get(utils.Point{X: lowSampleX, Y: hiSampleY})
+			//q11, _ := generator.Get(utils.Point{X: hiSampleX, Y: hiSampleY})
+			//
+			//dX := float32(float64(x)*dW - float64(lowSampleX))
+			//dY := float32(float64(y)*dH - float64(lowSampleY))
+			//// TODO: Refactor into function for reuse.
+			//lerped := q00 * (1 - dX) * (1 - dY) +
+			//	q10 * dX * (1 - dY) +
+			//	q01 * (1 - dX) * dY +
+			//	q11 * dX * dY
 
 			(*vertices)[vertIndex+0] = float32(y - (p.rows - 1) / 2)
-			(*vertices)[vertIndex+1] = lerped
+			(*vertices)[vertIndex+1] = 1.0
 			(*vertices)[vertIndex+2] = float32(x - (p.cols - 1) / 2)
-
-			(*vertices)[vertIndex+3] = float32(utils.ToIndex(lowSampleX, lowSampleY, genW))
+			(*vertices)[vertIndex+3] = float32(utils.ToIndex(lowSampleX, lowSampleY, sourceWidth))
 			vertIndex += 9
 		}
 	}

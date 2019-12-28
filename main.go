@@ -25,8 +25,8 @@ const (
 	windowWidth = 1200
 	windowHeight = 800
 	maxVertexBuffer  = 512 * 1024
-	maxElementBuffer = 128 * 1024
-	strBufferSize int32 = 256 * 1024
+	maxElementBuffer = 64 * 1024
+	strBufferSize int32 = 64 * 1024
 	vertexShaderPath = "./shaders/main.vert"
 	fragShaderPath = "./shaders/main.frag"
 )
@@ -121,6 +121,9 @@ func setupUniforms(state *State) {
 	waterHeightUniform := gl.GetUniformLocation(program, gl.Str("tboWaterHeight\x00"))
 	gl.Uniform1i(waterHeightUniform, 0)
 
+	heightmapUniform := gl.GetUniformLocation(program, gl.Str("tboHeightmap\x00"))
+	gl.Uniform1i(heightmapUniform, 1)
+
 	state.Uniforms["heightUniform"] = heightUniform
 	state.Uniforms["projectionUniform"] = projectionUniform
 	state.Uniforms["cameraUniform"] = cameraUniform
@@ -128,6 +131,7 @@ func setupUniforms(state *State) {
 	state.Uniforms["angleUniform"] = angleUniform
 	state.Uniforms["terrainUniform"] = terrainHitPos
 	state.Uniforms["waterHeightUniform"] = waterHeightUniform
+	state.Uniforms["heightmapUniform"] = heightmapUniform
 }
 
 func main() {
@@ -139,8 +143,8 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(1024,1024)
-	var midpointDisp = generators.NewMidPointDisplacement(256,256)
+	var testPlane = core.NewPlane(128,128)
+	var midpointDisp = generators.NewMidPointDisplacement(64,64)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = terrain.ErosionState{
@@ -150,16 +154,16 @@ func main() {
 		EvaporationRate:        0.015,
 		TimeStep:               0.002,
 		IsRaining: true,
-		SedimentCarryCapacity: 1.0,
+		SedimentCarryCapacity: 5.0,
 		SoilDepositionRate: 1.0,
 		SoilSuspensionRate: 0.5,
-		MaximalErodeDepth: 0.004,
+		MaximalErodeDepth: 0.001,
 	}
 	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
-		WorldPos: mgl32.Vec3{-1000, 1000, -1000},
+		WorldPos: mgl32.Vec3{-200, 200, -200},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 30.0,
@@ -189,7 +193,7 @@ func main() {
 	state.TerrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
 
-	state.Plane.Construct(midpointDisp)
+	state.Plane.Construct(64, 64)
 
 
 
@@ -232,10 +236,12 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
-	state.Plane.Construct(state.MidpointGen)
 	state.TerrainEroder.SimulationStep()
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
+
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
 
 	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
 	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
@@ -284,7 +290,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
 				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen, state.ErosionState)
 				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
-				state.Plane.Construct(state.MidpointGen)
+				state.Plane.Construct(64, 64)
 			}
 			// TODO: Abstract out into a function so we reduce code repetition.
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
@@ -399,13 +405,12 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 						}
 					case "regen":
 						state.MidpointGen.Generate(state.Spread, state.Reduce)
-						state.Plane.Construct(state.MidpointGen)
+						state.Plane.Construct(64, 64)
 					case "step":
 						for i:= 0; i < 100; i++ {
 							state.TerrainEroder.SimulationStep()
 						}
-						state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
-						state.Plane.Construct(state.MidpointGen)
+						state.Plane.Construct(64, 64)
 					case "set":
 						key := cmd[1]
 						val, _ := strconv.ParseFloat(cmd[2], 32)
