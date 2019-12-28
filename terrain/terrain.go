@@ -2,9 +2,7 @@ package terrain
 
 import (
 	"github.com/go-gl/gl/v3.2-core/gl"
-	_ "github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
-	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
 	"math"
@@ -33,7 +31,7 @@ type Terrain struct {
 	swap *LayerData
 	state *ErosionState
 	width, height int
-	WaterHeightBuffer, SedimentBuffer uint32
+	WaterHeightBuffer, WaterHeightBufferTexture uint32
 	heightmap []float32
 	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
 }
@@ -72,7 +70,7 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 	}
 }
 
-func (t *Terrain) Initialise(heightmap []float32, m *core.Mesh) {
+func (t *Terrain) Initialise(heightmap []float32) {
 	t.heightmap = make([]float32, (t.width + 1) * (t.height + 1))
 	t.persistCopy =  make([]float32, (t.width + 1) * (t.height + 1))
 	
@@ -86,25 +84,13 @@ func (t *Terrain) Initialise(heightmap []float32, m *core.Mesh) {
 		t.initial.rainRate[i] = val
 		t.swap.rainRate[i] = val
 	}
-	//for x := 100; x < 120; x++ {
-	//	for y := 100; y < 120; y++ {
-	//		var i = utils.ToIndex(x, y, t.width)
-	//		t.initial.rainRate[i] = 0.9
-	//		t.swap.rainRate[i] = 0.9
-	//	}
-	//}
-	m.Construct()
-	gl.GenBuffers(1, &t.WaterHeightBuffer)
-	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
-	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
-	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
-	gl.EnableVertexAttribArray(3)
 
-	gl.GenBuffers(1, &t.SedimentBuffer)
-	gl.BindBuffer(gl.ARRAY_BUFFER, t.SedimentBuffer)
-	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
-	gl.VertexAttribPointer(4, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
-	gl.EnableVertexAttribArray(4)
+	// Setup water height buffer and associated storage.
+	gl.GenBuffers(1, &t.WaterHeightBuffer)
+	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
+	gl.GenTextures(1, &t.WaterHeightBufferTexture)
+	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 }
 
 
@@ -134,16 +120,15 @@ func (t *Terrain) SimulationStep() {
 	var dimensions = len(initial.heightmap)
 
 
-	// Update OpenGL Buffers.
-	gl.BindBuffer(gl.ARRAY_BUFFER, t.WaterHeightBuffer)
-	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
-	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
-	gl.EnableVertexAttribArray(3)
+	// Update water height buffer data.
+	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight))
+	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
+	// Update the associated texture.
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_BUFFER, t.WaterHeightBufferTexture)
+	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.R32F, t.WaterHeightBuffer)
 
-	gl.BindBuffer(gl.ARRAY_BUFFER, t.SedimentBuffer)
-	gl.BufferData(gl.ARRAY_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
-	gl.VertexAttribPointer(4, 1, gl.FLOAT, false, 0, gl.PtrOffset(0))
-	gl.EnableVertexAttribArray(4)
 
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
@@ -269,9 +254,11 @@ func (t *Terrain) SimulationStep() {
 
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
 			swap.waterHeight[i] += TimeStepWaterHeight
+			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
+			t.swap.waterHeight[i] = float32(math.Max(0, float64(t.swap.waterHeight[i])))
 		}
 	}
-
+/*
 	// Velocity Field calculation
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
@@ -425,7 +412,7 @@ func (t *Terrain) SimulationStep() {
 					i4Val * dVel.X() * dVel.Y()
 			}
 		}
-	}
+	}*/
 
 
 

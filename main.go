@@ -81,6 +81,7 @@ func setupOpenGl() *glfw.Window {
 
 	version := gl.GoStr(gl.GetString(gl.VERSION))
 	fmt.Println("OpenGL version", version)
+	fmt.Println("Maximum Max Uniform Block Size: ", gl.MAX_UNIFORM_BLOCK_SIZE)
 
 	return window
 }
@@ -117,12 +118,16 @@ func setupUniforms(state *State) {
 	heightUniform := gl.GetUniformLocation(program, gl.Str("height\x00"))
 	gl.Uniform1fv(heightUniform, 1, &state.Height)
 
+	waterHeightUniform := gl.GetUniformLocation(program, gl.Str("tboWaterHeight\x00"))
+	gl.Uniform1i(waterHeightUniform, 0)
+
 	state.Uniforms["heightUniform"] = heightUniform
 	state.Uniforms["projectionUniform"] = projectionUniform
 	state.Uniforms["cameraUniform"] = cameraUniform
 	state.Uniforms["modelUniform"] = modelUniform
 	state.Uniforms["angleUniform"] = angleUniform
 	state.Uniforms["terrainUniform"] = terrainHitPos
+	state.Uniforms["waterHeightUniform"] = waterHeightUniform
 }
 
 func main() {
@@ -134,8 +139,8 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(512,512)
-	var midpointDisp = generators.NewMidPointDisplacement(128,128)
+	var testPlane = core.NewPlane(1024,1024)
+	var midpointDisp = generators.NewMidPointDisplacement(256,256)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = terrain.ErosionState{
@@ -154,7 +159,7 @@ func main() {
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
-		WorldPos: mgl32.Vec3{-200, 200, -200},
+		WorldPos: mgl32.Vec3{-1000, 1000, -1000},
 		Uniforms: make(map[string]int32),
 		Plane: testPlane,
 		FOV: 30.0,
@@ -182,9 +187,9 @@ func main() {
 	// Setup terrain
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
+	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
 
 	state.Plane.Construct(midpointDisp)
-	state.TerrainEroder.Initialise(midpointDisp.Heightmap(), state.Plane.M())
 
 
 
@@ -227,9 +232,10 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-	//state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
-	//state.Plane.Construct(state.MidpointGen)
-	//state.TerrainEroder.SimulationStep()
+	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
+	state.Plane.Construct(state.MidpointGen)
+	state.TerrainEroder.SimulationStep()
+	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
 
 	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
 	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
@@ -277,14 +283,14 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 
 				state.MidpointGen.Generate(state.Spread, state.Reduce)
 				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen, state.ErosionState)
-				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap(), state.Plane.M())
+				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
 				state.Plane.Construct(state.MidpointGen)
 			}
 			// TODO: Abstract out into a function so we reduce code repetition.
 			nk.NkLayoutRowDynamic(ctx, 15, 3)
 			{
 				nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
-				newHeight := nk.NkSlideFloat(ctx, -200.0, state.Height, 200.0, 0.3)
+				newHeight := nk.NkSlideFloat(ctx, -1000.0, state.Height, 1000.0, 0.3)
 				if newHeight != state.Height {
 					state.Height = newHeight
 				}

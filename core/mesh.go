@@ -53,14 +53,18 @@ func (m *Mesh) Construct() {
 
 	// Setup Vertex Attrib Pointers so VBO is read correctly (positions, normals, texcoords)
 	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 8 * 4, gl.PtrOffset(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 9 * 4, gl.PtrOffset(0))
 
 	// Normal Vector
 	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(1, 3, gl.FLOAT, false, 8 * 4, gl.PtrOffset(3*4))
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, false, 9 * 4, gl.PtrOffset(3*4))
 
 	// Texture Coords
 	gl.EnableVertexAttribArray(2)
-	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, gl.PtrOffset(6*4))
-
+	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 9 * 4, gl.PtrOffset(6*4))
+	gl.BindVertexArray(0)
+	
+	// Lookup Index
+	gl.EnableVertexAttribArray(3)
+	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 9 * 4, gl.PtrOffset(8 * 4))
 }

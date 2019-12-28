@@ -18,7 +18,7 @@ func (p *Plane) M() *Mesh {
 
 func NewPlane(rows int, cols int) *Plane {
 	var newPlane = Plane{rows: rows, cols: cols, m: Mesh{
-		Vertices:   make([]float32, rows * cols * 8),
+		Vertices:   make([]float32, rows * cols * 9),
 		Texture:    0,
 		Indices:    make([]uint32, (rows-1) * (cols-1) * 3 * 2),
 		RenderMode: gl.TRIANGLES,
@@ -37,7 +37,7 @@ func (p *Plane) Construct(generator generators.TerrainGenerator) {
 
 	for x := 0; x < p.rows; x++ {
 		for y := 0; y < p.cols; y++ {
-			// Billinear Interpolation
+			// Billinear Interpolation on height
 			lowSampleX := int(math.Floor(float64(x) * (dW)))
 			lowSampleY := int(math.Floor(float64(y) * (dH)))
 			hiSampleX := int(math.Ceil(float64(x) * (dW)))
@@ -50,7 +50,7 @@ func (p *Plane) Construct(generator generators.TerrainGenerator) {
 
 			dX := float32(float64(x)*dW - float64(lowSampleX))
 			dY := float32(float64(y)*dH - float64(lowSampleY))
-
+			// TODO: Refactor into function for reuse.
 			lerped := q00 * (1 - dX) * (1 - dY) +
 				q10 * dX * (1 - dY) +
 				q01 * (1 - dX) * dY +
@@ -59,13 +59,9 @@ func (p *Plane) Construct(generator generators.TerrainGenerator) {
 			(*vertices)[vertIndex+0] = float32(y - (p.rows - 1) / 2)
 			(*vertices)[vertIndex+1] = lerped
 			(*vertices)[vertIndex+2] = float32(x - (p.cols - 1) / 2)
-			vertIndex += 8
-		}
-	}
 
-	for x := 0; x < p.rows; x++ {
-		for y := 0; y < p.cols; y++ {
-
+			(*vertices)[vertIndex+3] = float32(utils.ToIndex(lowSampleX, lowSampleY, genW))
+			vertIndex += 9
 		}
 	}
 	
