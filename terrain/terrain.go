@@ -1,6 +1,7 @@
 package terrain
 
 import (
+	"fmt"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/ob6160/Terrain/generators"
@@ -35,6 +36,7 @@ type Terrain struct {
 	HeightmapBuffer, HeightmapBufferTexture uint32
 	heightmap []float32
 	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
+	iterations int
 }
 
 func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Terrain {
@@ -74,7 +76,7 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 func (t *Terrain) Initialise(heightmap []float32) {
 	t.heightmap = make([]float32, (t.width + 1) * (t.height + 1))
 	t.persistCopy =  make([]float32, (t.width + 1) * (t.height + 1))
-	
+	t.iterations = 0
 	copy(t.heightmap, heightmap)
 	copy(t.persistCopy, heightmap)
 	// Set a constant rain rate for each cell
@@ -114,6 +116,9 @@ func (t *Terrain) SimulationStep() {
 	var swap = *t.swap
 	var dimensions = len(initial.heightmap)
 
+	t.iterations++
+	println(fmt.Sprintf("%d Iterations", t.iterations))
+	
 	// Update heightmap buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
 	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap))
@@ -293,8 +298,8 @@ func (t *Terrain) SimulationStep() {
 				_, _, bottomInFlow, _ = swap.outflowFlux[bi].Elem()
 			}
 
-			var velX = (leftInFlow - centreLeft - rightInFlow + centreRight) * 0.5
-			var velY = (topInFlow - centreTop - bottomInFlow + centreBottom ) * 0.5
+			var velX = (leftInFlow - centreLeft + centreRight - rightInFlow) * 0.5
+			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow ) * 0.5
 			t.swap.velocity[i] = mgl32.Vec2{velX, velY}
 
 		}
@@ -346,7 +351,7 @@ func (t *Terrain) SimulationStep() {
 			var dyv = mgl32.Vec3{0, dy, 2}
 			var normal = dxv.Cross(dyv)
 			var tiltAngle = math.Abs(float64(normal.Y())) / float64(normal.Len())
-			var sediment = t.initial.suspendedSediment[i]
+			var sediment = t.swap.suspendedSediment[i]
 			var waterHeight = t.swap.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
 
@@ -360,15 +365,15 @@ func (t *Terrain) SimulationStep() {
 			}
 
 			var carryCapacity = t.state.SedimentCarryCapacity * velocity * float32(math.Min(tiltAngle, 0.05)) * maximum
-			
-			if sediment > carryCapacity {
-				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (sediment - carryCapacity)
-				t.initial.heightmap[i] += delta
-				t.swap.suspendedSediment[i] -= delta
+
+			if sediment < carryCapacity {
+				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (carryCapacity - sediment)
+				t.swap.heightmap[i] -= delta
+				t.swap.suspendedSediment[i] += delta
 			} else {
 				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (sediment - carryCapacity)
-				t.initial.heightmap[i] -= delta
-				t.swap.suspendedSediment[i] += delta
+				t.swap.heightmap[i] += delta
+				t.swap.suspendedSediment[i] -= delta
 			}
 
 			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
@@ -384,7 +389,9 @@ func (t *Terrain) SimulationStep() {
 				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
 
 				var a = mgl32.Vec2{float32(math.Floor(float64(dVel.X()))), float32(math.Floor(float64(dVel.Y())))}
-				var b = mgl32.Vec2{a.X() + 1.0, a.Y() + 1.0}
+				var b = mgl32.Vec2{float32(math.Ceil(float64(dVel.X()))), float32(math.Ceil(float64(dVel.Y())))}
+				
+				var dd = dVel.Sub(a)
 
 				var i1Val float32 = 0.0
 				i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
@@ -407,10 +414,10 @@ func (t *Terrain) SimulationStep() {
 					i4Val = t.initial.suspendedSediment[i4]
 				}
 
-				t.swap.suspendedSediment[i] = i1Val * (1 - dVel.X()) * (1- dVel.Y()) +
-					i2Val * dVel.X() * (1 - dVel.Y()) +
-					i3Val * (1 - dVel.X()) * dVel.Y() +
-					i4Val * dVel.X() * dVel.Y()
+				t.swap.suspendedSediment[i] = i1Val * (1 - dd.X()) * (1- dd.Y()) +
+					i2Val * dd.X() * (1 - dd.Y()) +
+					i3Val * (1 - dd.X()) * dd.Y() +
+					i4Val * dd.X() * dd.Y()
 			}
 		}
 	}
