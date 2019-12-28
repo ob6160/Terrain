@@ -134,7 +134,7 @@ func main() {
 	window := setupOpenGl()
 	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
 
-	var testPlane = core.NewPlane(128,128)
+	var testPlane = core.NewPlane(512,512)
 	var midpointDisp = generators.NewMidPointDisplacement(128,128)
 	midpointDisp.Generate(0.5, 0.5)
 
@@ -199,7 +199,7 @@ func main() {
 		<-doneC
 	})
 
-	fpsTicker := time.NewTicker(time.Second / 30)
+	fpsTicker := time.NewTicker(time.Second / 60)
 	for {
 		select {
 		case <-exitC:
@@ -227,15 +227,13 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	width, height := win.GetSize()
 
-	state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
-	state.Plane.Construct(state.MidpointGen)
-	state.TerrainEroder.SimulationStep()
-
+	//state.MidpointGen.SetHeightmap(state.TerrainEroder.Heightmap())
+	//state.Plane.Construct(state.MidpointGen)
+	//state.TerrainEroder.SimulationStep()
 
 	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
 	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
 	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
-
 	gl.UseProgram(state.Program)
 	gl.UniformMatrix4fv(state.Uniforms["projectionUniform"], 1, false, &state.Projection[0])
 	gl.UniformMatrix4fv(state.Uniforms["cameraUniform"], 1, false, &state.Camera[0])
@@ -243,6 +241,7 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 
 	state.Plane.M().Draw()
+
 
 	nk.NkPlatformNewFrame()
 	// GUI
@@ -362,7 +361,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 			nk.NkTreePop(ctx)
 		}
 	}
-
 	nk.NkEnd(ctx)
 
 	debugBounds := nk.NkRect(windowWidth - 350, windowHeight - 200, 300, 175)
@@ -417,7 +415,6 @@ func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 			}
 		}
 	}
-
 	nk.NkEnd(ctx)
 	gl.Viewport(0, 0, int32(width), int32(height))
 	nk.NkPlatformRender(nk.AntiAliasingOn, maxVertexBuffer, maxElementBuffer)
