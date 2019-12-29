@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/ob6160/Terrain/utils"
 	"math"
 )

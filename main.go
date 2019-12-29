@@ -3,10 +3,9 @@ package main
 import "C"
 import (
 	"fmt"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
-	"github.com/golang-ui/nuklear/nk"
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/erosion"
 	"github.com/ob6160/Terrain/generators"
@@ -42,12 +41,10 @@ type State struct {
 	Plane              *core.Plane
 	MidpointGen *generators.MidpointDisplacement
 	TerrainEroder *erosion.CPUEroder
+	GPUEroder *erosion.GPUEroder
 	Spread, Reduce float32
 	ErosionState *erosion.State
 	//UI
-	TerrainTreeState   nk.CollapseStates
-	CameraTreeState nk.CollapseStates
-	ErosionTreeState nk.CollapseStates
 	DebugField []byte
 	DebugFieldLen int32
 	InfoValueString string
@@ -61,7 +58,7 @@ func init() {
 
 func setupOpenGl() *glfw.Window {
 	glfw.WindowHint(glfw.Resizable, glfw.False)
-	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.WindowHint(glfw.ContextVersionMajor, 4)
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
@@ -137,8 +134,6 @@ func main() {
 	defer glfw.Terminate()
 
 	window := setupOpenGl()
-	ctx := nk.NkPlatformInit(window, nk.PlatformInstallCallbacks)
-
 	var testPlane = core.NewPlane(128,128)
 	var midpointDisp = generators.NewMidPointDisplacement(64,64)
 	midpointDisp.Generate(0.5, 0.5)
@@ -155,8 +150,9 @@ func main() {
 		SoilSuspensionRate: 0.5,
 		MaximalErodeDepth: 0.001,
 	}
-	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
-
+	//var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
+	var gpuEroder = erosion.NewGPUEroder(midpointDisp)
+	
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
 		WorldPos: mgl32.Vec3{-200, 200, -200},
@@ -167,11 +163,8 @@ func main() {
 		Spread: 0.5,
 		Reduce: 0.5,
 		MidpointGen: midpointDisp,
-		TerrainEroder: terrainEroder,
+		GPUEroder: gpuEroder,
 		ErosionState: &erosionState,
-		ErosionTreeState: nk.Maximized,
-		TerrainTreeState: nk.Maximized,
-		CameraTreeState: nk.Maximized,
 		DebugField: make([]byte, 1000),
 		DebugFieldLen: 0,
 		InfoValueString: "",
@@ -198,11 +191,6 @@ func main() {
 	state.TerrainEroder.SimulationStep()
 	state.TerrainEroder.SimulationStep()
 
-
-	atlas := nk.NewFontAtlas()
-	nk.NkFontStashBegin(&atlas)
-	nk.NkFontStashEnd()
-
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
 	closer.Bind(func() {
@@ -214,7 +202,6 @@ func main() {
 	for {
 		select {
 		case <-exitC:
-			nk.NkPlatformShutdown()
 			glfw.Terminate()
 			fpsTicker.Stop()
 			close(doneC)
@@ -226,8 +213,7 @@ func main() {
 			}
 
 			glfw.PollEvents()
-
-			render(window, ctx, state, t)
+			render(window, state, t)
 		}
 	}
 }
@@ -243,20 +229,13 @@ func updateUniforms(state *State) {
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 }
 
-func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
+func render(win *glfw.Window, state *State, timer time.Time) {
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 	gl.UseProgram(state.Program)
 	updateUniforms(state)
 
-	// Update data holding textures
-	state.TerrainEroder.UpdateBuffers()
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
-
-	gl.ActiveTexture(gl.TEXTURE1)
-	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
 
 	state.Plane.M().Draw()
 

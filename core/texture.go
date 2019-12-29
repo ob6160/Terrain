@@ -2,7 +2,7 @@ package core
 
 import (
 	"fmt"
-	"github.com/go-gl/gl/v4.1-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"image"
 	"image/draw"
 	"os"
