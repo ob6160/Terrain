@@ -109,16 +109,7 @@ func WithinBounds(index, dimensions int) bool {
 	return false
 }
 
-
-func (t *Terrain) SimulationStep() {
-	// == Shallow water flow simulation ==
-	var initial = *t.initial
-	var swap = *t.swap
-	var dimensions = len(initial.heightmap)
-
-	t.iterations++
-	println(fmt.Sprintf("%d Iterations", t.iterations))
-	
+func (t *Terrain) UpdateBuffers() {
 	// Update heightmap buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
 	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap))
@@ -136,6 +127,17 @@ func (t *Terrain) SimulationStep() {
 	gl.ActiveTexture(gl.TEXTURE1)
 	gl.BindTexture(gl.TEXTURE_BUFFER, t.HeightmapBufferTexture)
 	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.R32F, t.HeightmapBuffer)
+
+}
+
+func (t *Terrain) SimulationStep() {
+	// == Shallow water flow simulation ==
+	var initial = *t.initial
+	var swap = *t.swap
+	var dimensions = len(initial.heightmap)
+
+	t.iterations++
+	println(fmt.Sprintf("%d Iterations", t.iterations))
 
 
 	// Water Height Update (from rainRate array or constant water sources).

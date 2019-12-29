@@ -10,14 +10,10 @@ import (
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/terrain"
-	_"github.com/ob6160/Terrain/utils"
+	_ "github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
-	"gopkg.in/oleiade/reflections.v1"
 	"log"
-	"math"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -181,6 +177,9 @@ func main() {
 		InfoValueString: "",
 	}
 
+
+
+
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
 		panic(err)
@@ -195,6 +194,9 @@ func main() {
 
 	state.Plane.Construct(64, 64)
 
+
+	state.TerrainEroder.SimulationStep()
+	state.TerrainEroder.SimulationStep()
 
 
 	atlas := nk.NewFontAtlas()
@@ -230,204 +232,33 @@ func main() {
 	}
 }
 
-func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
+func updateUniforms(state *State) {
+	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
+	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
+	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
 
+	gl.UniformMatrix4fv(state.Uniforms["projectionUniform"], 1, false, &state.Projection[0])
+	gl.UniformMatrix4fv(state.Uniforms["cameraUniform"], 1, false, &state.Camera[0])
+	gl.Uniform1fv(state.Uniforms["heightUniform"], 1, &state.Height)
+	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
+}
+
+func render(win *glfw.Window, ctx *nk.Context, state *State, timer time.Time) {
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-	width, height := win.GetSize()
 
-	state.TerrainEroder.SimulationStep()
+	gl.UseProgram(state.Program)
+	updateUniforms(state)
+
+	// Update data holding textures
+	state.TerrainEroder.UpdateBuffers()
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
 
 	gl.ActiveTexture(gl.TEXTURE1)
 	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
 
-	state.CameraPos = mgl32.Rotate3DY(state.Angle).Mul3x1(state.WorldPos)
-	state.Camera = mgl32.LookAtV(state.CameraPos, mgl32.Vec3{0, 0, 0}, mgl32.Vec3{0, 1, 0})
-	state.Projection = mgl32.Perspective(mgl32.DegToRad(state.FOV), float32(windowWidth)/windowHeight, 0.01, 10000.0)
-	gl.UseProgram(state.Program)
-	gl.UniformMatrix4fv(state.Uniforms["projectionUniform"], 1, false, &state.Projection[0])
-	gl.UniformMatrix4fv(state.Uniforms["cameraUniform"], 1, false, &state.Camera[0])
-	gl.Uniform1fv(state.Uniforms["heightUniform"], 1, &state.Height)
-	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
-
 	state.Plane.M().Draw()
 
-
-	nk.NkPlatformNewFrame()
-	// GUI
-	simulBounds := nk.NkRect(50, 50, 350, 400)
-	simulUpdate := nk.NkBegin(ctx, "Simulation Controls", simulBounds,
-		nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
-
-	// TODO: Abstract UI into its own namespace/module
-	if simulUpdate > 0 {
-		// Camera Settings Panel
-		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Camera", &state.CameraTreeState) > 0 {
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Angle", nk.TextAlignLeft)
-				newAngle := nk.NkSlideFloat(ctx, 0.0, state.Angle, math.Pi*2, 0.01)
-				if newAngle != state.Angle {
-					state.Angle = newAngle
-				}
-			}
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx,"FOV", nk.TextAlignLeft)
-				newFOV := nk.NkSlideFloat(ctx, 0.0, state.FOV, 120.0, 1.0)
-				if newFOV != state.FOV {
-					state.FOV = newFOV
-				}
-			}
-			nk.NkTreePop(ctx)
-		}
-		// Terrain Settings Panel
-		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Terrain", &state.TerrainTreeState) > 0 {
-			if nk.NkButtonLabel(ctx, "Recalc Terrain") > 0 {
-
-				state.MidpointGen.Generate(state.Spread, state.Reduce)
-				state.TerrainEroder = terrain.NewTerrain(state.MidpointGen, state.ErosionState)
-				state.TerrainEroder.Initialise(state.MidpointGen.Heightmap())
-				state.Plane.Construct(64, 64)
-			}
-			// TODO: Abstract out into a function so we reduce code repetition.
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Height", nk.TextAlignLeft)
-				newHeight := nk.NkSlideFloat(ctx, -1000.0, state.Height, 1000.0, 0.3)
-				if newHeight != state.Height {
-					state.Height = newHeight
-				}
-			}
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Spread", nk.TextAlignLeft)
-				newSpread := nk.NkSlideFloat(ctx, 0.0, state.Spread, 2.0, 0.01)
-				if newSpread != state.Spread {
-					state.Spread = newSpread
-				}
-			}
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Reduce", nk.TextAlignLeft)
-				newReduce := nk.NkSlideFloat(ctx, 0.0, state.Reduce, 2.0, 0.01)
-				if newReduce != state.Reduce {
-					state.Reduce = newReduce
-				}
-			}
-			nk.NkTreePop(ctx)
-		}
-		// Debug Text Input / Output
-
-		if nk.NkTreeStatePush(ctx, nk.TreeTab, "Erosion", &state.ErosionTreeState) > 0 {
-			if nk.NkButtonLabel(ctx, "Toggle Rain") > 0 {
-				state.ErosionState.IsRaining = !state.ErosionState.IsRaining
-			}
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Water Incrmt Rate", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.001, float32(state.ErosionState.WaterIncrementRate), 0.2, 0.0001)
-				if newRate != float32(state.ErosionState.WaterIncrementRate) {
-					state.ErosionState.WaterIncrementRate = newRate
-				}
-			}
-
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Gravitational Constant", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.GravitationalConstant), 20.0, 0.1)
-				if newRate != float32(state.ErosionState.GravitationalConstant) {
-					state.ErosionState.GravitationalConstant = newRate
-				}
-			}
-
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Pipe Cross Section Area", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.PipeCrossSectionalArea), 100.0, 1.0)
-				if newRate != float32(state.ErosionState.PipeCrossSectionalArea) {
-					state.ErosionState.PipeCrossSectionalArea = newRate
-				}
-			}
-
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Evaporation Rate", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.0, float32(state.ErosionState.EvaporationRate), 2.0, 0.01)
-				if newRate != float32(state.ErosionState.EvaporationRate) {
-					state.ErosionState.EvaporationRate = newRate
-				}
-			}
-
-			nk.NkLayoutRowDynamic(ctx, 15, 3)
-			{
-				nk.NkLabel(ctx, "Timestep", nk.TextAlignLeft)
-				newRate := nk.NkSlideFloat(ctx, 0.00001, float32(state.ErosionState.TimeStep), 0.05, 0.0001)
-				if newRate != float32(state.ErosionState.TimeStep) {
-					state.ErosionState.TimeStep = newRate
-				}
-			}
-			
-			nk.NkTreePop(ctx)
-		}
-	}
-	nk.NkEnd(ctx)
-
-	debugBounds := nk.NkRect(windowWidth - 350, windowHeight - 200, 300, 175)
-	debugUpdate := nk.NkBegin(ctx, "Debug Console", debugBounds, nk.WindowBorder|nk.WindowMovable|nk.WindowScalable|nk.WindowMinimizable|nk.WindowTitle)
-	// Fix for faulty enter key handling
-	// TODO: Abstract debug console handling logic out into its own module
-	if debugUpdate > 0 {
-		nk.NkLayoutRowBegin(ctx, nk.Static, 30, 2)
-		{
-			nk.NkLayoutRowPush(ctx, 230)
-			nk.NkEditString(ctx, nk.EditField, state.DebugField, &state.DebugFieldLen, strBufferSize, nk.NkFilterDefault)
-			nk.NkLayoutRowPush(ctx, 30)
-
-			if nk.NkButtonLabel(ctx, ">>") > 0 ||  win.GetKey(glfw.KeyEnter) == glfw.Press {
-				// TODO: Store settings in a Map so we don't need to do ugly reflection here.
-				if state.DebugFieldLen > 0 {
-					input := string(state.DebugField[:state.DebugFieldLen])
-					cmdSplitted := strings.Split(input, "/")[1]
-					cmd := strings.Split(cmdSplitted, " ")
-					print(fmt.Sprintf("Command: %s\n", input))
-					switch strings.ToLower(cmd[0]) {
-					case "mode":
-						var mesh = state.Plane.M()
-						val := cmd[1]
-						switch strings.ToLower(val) {
-						case "triangles":
-							mesh.RenderMode = gl.TRIANGLES
-						case "lines":
-							mesh.RenderMode = gl.LINES
-						}
-					case "regen":
-						state.MidpointGen.Generate(state.Spread, state.Reduce)
-						state.Plane.Construct(64, 64)
-					case "step":
-						for i:= 0; i < 100; i++ {
-							state.TerrainEroder.SimulationStep()
-						}
-						state.Plane.Construct(64, 64)
-					case "set":
-						key := cmd[1]
-						val, _ := strconv.ParseFloat(cmd[2], 32)
-						print(fmt.Sprintf("Key: %s, Val: %f\n", key, val))
-						err := reflections.SetField(state, key, float32(val))
-						if err != nil {
-							fmt.Print(err)
-						}
-					}
-					state.DebugFieldLen = 0
-					state.DebugField = make([]byte, 1000)
-				}
-			}
-		}
-	}
-	nk.NkEnd(ctx)
-	gl.Viewport(0, 0, int32(width), int32(height))
-	nk.NkPlatformRender(nk.AntiAliasingOn, maxVertexBuffer, maxElementBuffer)
 	win.SwapBuffers()
 }
