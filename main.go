@@ -8,8 +8,8 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/golang-ui/nuklear/nk"
 	"github.com/ob6160/Terrain/core"
+	"github.com/ob6160/Terrain/erosion"
 	"github.com/ob6160/Terrain/generators"
-	"github.com/ob6160/Terrain/terrain"
 	_ "github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
 	"log"
@@ -41,9 +41,9 @@ type State struct {
 	Angle, Height, FOV float32
 	Plane              *core.Plane
 	MidpointGen *generators.MidpointDisplacement
-	TerrainEroder *terrain.Terrain
+	TerrainEroder *erosion.CPUEroder
 	Spread, Reduce float32
-	ErosionState *terrain.ErosionState
+	ErosionState *erosion.State
 	//UI
 	TerrainTreeState   nk.CollapseStates
 	CameraTreeState nk.CollapseStates
@@ -65,7 +65,7 @@ func setupOpenGl() *glfw.Window {
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
-	window, err := glfw.CreateWindow(windowWidth, windowHeight, "Terrain", nil, nil)
+	window, err := glfw.CreateWindow(windowWidth, windowHeight, "CPUEroder", nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -143,7 +143,7 @@ func main() {
 	var midpointDisp = generators.NewMidPointDisplacement(64,64)
 	midpointDisp.Generate(0.5, 0.5)
 
-	var erosionState = terrain.ErosionState{
+	var erosionState = erosion.State{
 		WaterIncrementRate:     0.012,
 		GravitationalConstant:  9.81,
 		PipeCrossSectionalArea: 20,
@@ -155,7 +155,7 @@ func main() {
 		SoilSuspensionRate: 0.5,
 		MaximalErodeDepth: 0.001,
 	}
-	var terrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
+	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
@@ -189,7 +189,7 @@ func main() {
 
 	// Setup terrain
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
-	state.TerrainEroder = terrain.NewTerrain(midpointDisp, &erosionState)
+	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
 
 	state.Plane.Construct(64, 64)

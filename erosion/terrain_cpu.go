@@ -1,4 +1,4 @@
-package terrain
+package erosion
 
 import (
 	"fmt"
@@ -20,17 +20,16 @@ type LayerData struct {
 	tiltMap []float32
 }
 
-
-type ErosionState struct {
+type State struct {
 	IsRaining bool
 	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float32
 	SedimentCarryCapacity, SoilSuspensionRate, SoilDepositionRate, MaximalErodeDepth float32
 }
 
-type Terrain struct {
+type CPUEroder struct {
 	initial *LayerData
 	swap *LayerData
-	state *ErosionState
+	state *State
 	width, height int
 	WaterHeightBuffer, WaterHeightBufferTexture uint32
 	HeightmapBuffer, HeightmapBufferTexture uint32
@@ -39,7 +38,7 @@ type Terrain struct {
 	iterations int
 }
 
-func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Terrain {
+func NewCPUEroder(heightmap generators.TerrainGenerator, state*State) *CPUEroder {
 	var width, height = heightmap.Dimensions()
 	initialCopy := make([]float32, (width + 1) * (height + 1))
 	copy(initialCopy, heightmap.Heightmap())
@@ -64,7 +63,7 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 		heightmap:        swapCopy,
 	}
 
-	return &Terrain{
+	return &CPUEroder{
 		initial: &initial,
 		swap: &swap,
 		state: state,
@@ -73,7 +72,7 @@ func NewTerrain(heightmap generators.TerrainGenerator, state* ErosionState) *Ter
 	}
 }
 
-func (t *Terrain) Initialise(heightmap []float32) {
+func (t *CPUEroder) Initialise(heightmap []float32) {
 	t.heightmap = make([]float32, (t.width + 1) * (t.height + 1))
 	t.persistCopy =  make([]float32, (t.width + 1) * (t.height + 1))
 	t.iterations = 0
@@ -109,7 +108,7 @@ func WithinBounds(index, dimensions int) bool {
 	return false
 }
 
-func (t *Terrain) UpdateBuffers() {
+func (t *CPUEroder) UpdateBuffers() {
 	// Update heightmap buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
 	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap))
@@ -130,7 +129,7 @@ func (t *Terrain) UpdateBuffers() {
 
 }
 
-func (t *Terrain) SimulationStep() {
+func (t *CPUEroder) SimulationStep() {
 	// == Shallow water flow simulation ==
 	var initial = *t.initial
 	var swap = *t.swap
