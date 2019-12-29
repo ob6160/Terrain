@@ -25,8 +25,6 @@ func NewPlane(rows int, cols int) *Plane {
 	return &newPlane
 }
 
-
-
 func (p *Plane) Construct(sourceWidth, sourceHeight int) {
 
 	var vertices = &p.m.Vertices

@@ -62,7 +62,7 @@ func setupOpenGl() *glfw.Window {
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
-	window, err := glfw.CreateWindow(windowWidth, windowHeight, "CPUEroder", nil, nil)
+	window, err := glfw.CreateWindow(windowWidth, windowHeight, "Terrain", nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -150,7 +150,7 @@ func main() {
 		SoilSuspensionRate: 0.5,
 		MaximalErodeDepth: 0.001,
 	}
-	//var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
+	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	var gpuEroder = erosion.NewGPUEroder(midpointDisp)
 	
 	// TODO: Move defaults into configurable constants.
@@ -163,15 +163,13 @@ func main() {
 		Spread: 0.5,
 		Reduce: 0.5,
 		MidpointGen: midpointDisp,
+		TerrainEroder: terrainEroder,
 		GPUEroder: gpuEroder,
 		ErosionState: &erosionState,
 		DebugField: make([]byte, 1000),
 		DebugFieldLen: 0,
 		InfoValueString: "",
 	}
-
-
-
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
@@ -235,7 +233,12 @@ func render(win *glfw.Window, state *State, timer time.Time) {
 
 	gl.UseProgram(state.Program)
 	updateUniforms(state)
+	state.TerrainEroder.UpdateBuffers()
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
 
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
 
 	state.Plane.M().Draw()
 

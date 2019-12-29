@@ -6,7 +6,7 @@ Terrain generation coupled with hydraulic erosion on GPU. Comparison with same i
 ### Erosion
 
 - [ ] Refine existing code/method
-- [ ] Hydraulic Erosion implementation on GPU
+- [ ] Hydraulic Erosion implementation on GPU (compute shader)
 - [ ] Implement suggested improvements from referenced material
 - [ ] Research into Thermal Erosion
 
@@ -49,6 +49,7 @@ Terrain generation coupled with hydraulic erosion on GPU. Comparison with same i
 ## Technology Used
 * Golang
 * OpenGL 4.5
+    - Compute Shaders
 * GLFW
 
 ## References

@@ -13,6 +13,38 @@ func NewProgramFromPath(vertexShaderPath, fragmentShaderPath string) (uint32, er
 	return NewProgram(vertexShader + "\x00", fragmentShader + "\x00")
 }
 
+func NewComputeProgramFromPath(computeShaderPath string) (uint32, error) {
+	computeShader, _ := utils.ReadTextFile(computeShaderPath)
+	return NewComputeProgram(computeShader + "\x00")
+}
+
+func NewComputeProgram(computeShaderSource string) (uint32, error) {
+	computeShader, err := compileShader(computeShaderSource, gl.COMPUTE_SHADER)
+
+	if err != nil {
+		return 0, err
+	}
+
+	program := gl.CreateProgram()
+	gl.AttachShader(program, computeShader)
+	gl.LinkProgram(program)
+
+	var status int32
+	gl.GetProgramiv(program, gl.LINK_STATUS, &status)
+	if status == gl.FALSE {
+		var logLength int32
+		gl.GetProgramiv(program, gl.INFO_LOG_LENGTH, &logLength)
+
+		log := strings.Repeat("\x00", int(logLength+1))
+		gl.GetProgramInfoLog(program, logLength, nil, gl.Str(log))
+
+		return 0, fmt.Errorf("failed to link program: %v", log)
+	}
+
+	gl.DeleteShader(computeShader)
+	return program, nil
+}
+
 func NewProgram(vertexShaderSource, fragmentShaderSource string) (uint32, error) {
 	vertexShader, err := compileShader(vertexShaderSource, gl.VERTEX_SHADER)
 	if err != nil {
