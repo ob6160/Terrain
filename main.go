@@ -155,12 +155,9 @@ func main() {
 	// Setup terrain
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
-	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
-
+	state.TerrainEroder.Initialise()
 	state.Plane.Construct(64, 64)
-	
-	state.TerrainEroder.SimulationStep()
-	state.TerrainEroder.SimulationStep()
+
 
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
@@ -181,8 +178,10 @@ func main() {
 				close(exitC)
 				continue
 			}
-
+			
 			glfw.PollEvents()
+			newGUI.Update()
+			state.TerrainEroder.Update()
 			render(newGUI, state, t)
 		}
 	}
@@ -199,38 +198,70 @@ func updateUniforms(state *State) {
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 }
 
-func render(gui *gui.GUI, state *State, timer time.Time) {
-	gl.Enable(gl.DEPTH_TEST)
-	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-	gui.Update()
+func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.NewFrame()
-	{
-		imgui.SetNextWindowSize(imgui.Vec2{X: 200, Y: 100})
-		imgui.Begin("Camera Settings")
-		imgui.SliderFloat("FOV", &state.FOV, 0.0, 100.0)
-		imgui.SliderFloat("Angle", &state.Angle, 0.0, math.Pi*2.0)
+	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
+	if imgui.BeginV("Options", &guiState.CameraWindowOpen, imgui.WindowFlagsMenuBar) {
+		if imgui.TreeNodeV("Camera", treeNodeFlags) {
+			imgui.SliderFloat("FOV", &coreState.FOV, 0.0, 100.0)
+			imgui.SliderFloat("Angle", &coreState.Angle, 0.0, math.Pi*2.0)
+			imgui.TreePop()
+		}
+		imgui.Separator()
+		if imgui.TreeNodeV("Terrain", treeNodeFlags) {
+			imgui.SliderFloat("Height", &coreState.Height, 0.0, 100.0)
+			imgui.SliderFloat("Spread", &coreState.Spread, 0.0, 10.0)
+			imgui.SliderFloat("Reduce", &coreState.Reduce, 0.0, 10.0)
+			if imgui.Button("Regenerate Terrain") {
+				coreState.MidpointGen.Generate(coreState.Spread, coreState.Reduce)
+				coreState.TerrainEroder.Reset()
+				coreState.TerrainEroder.Initialise()
+			}
+			imgui.TreePop()
+		}
+		imgui.Separator()
+		if imgui.TreeNodeV("Simulation", treeNodeFlags) {
+			runningLabel := "Start Simulation"
+			if coreState.TerrainEroder.IsRunning() {
+				runningLabel = "Stop Simulation"
+			}
+			if imgui.Button(runningLabel) {
+				coreState.TerrainEroder.Toggle()
+			}
+			if imgui.Button("Step Simulation") {
+				coreState.TerrainEroder.SimulationStep()
+			}
+			imgui.TreePop()
+		}
 		imgui.End()
 	}
 	imgui.Render()
+}
 
-	// Start Terrain render
+func render(g *gui.GUI, coreState *State, timer time.Time) {
+	gl.Enable(gl.DEPTH_TEST)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-	gl.UseProgram(state.Program)
-	updateUniforms(state)
-	state.TerrainEroder.UpdateBuffers()
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.Uniform1i(state.Uniforms["waterHeightUniform"], 0)
+	// Render Terrain
+	{
+		gl.UseProgram(coreState.Program)
+		updateUniforms(coreState)
+		coreState.TerrainEroder.UpdateBuffers()
+		{
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
+		}
+		coreState.Plane.M().Draw()
+	}
 
-	gl.ActiveTexture(gl.TEXTURE1)
-	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
+	// Render UI
+	{
+		g.Render(coreState.renderUI)
+	}
 
-	state.Plane.M().Draw()
-
-	// Start IMGUI render
-	gui.Render()
-
-	width, height := gui.GetSize()
+	width, height := g.GetSize()
 	gl.Viewport(0, 0, int32(width), int32(height))
-	gui.SwapBuffers()
+	g.SwapBuffers()
 }

@@ -30,54 +30,36 @@ type CPUEroder struct {
 	initial *LayerData
 	swap *LayerData
 	state *State
+	running bool
 	width, height int
 	WaterHeightBuffer, WaterHeightBufferTexture uint32
 	HeightmapBuffer, HeightmapBufferTexture uint32
-	heightmap []float32
-	persistCopy []float32 // TODO: Can we keep a persistent copy somewhere better?
+	heightmap *generators.TerrainGenerator
 	iterations int
 }
 
 func NewCPUEroder(heightmap generators.TerrainGenerator, state*State) *CPUEroder {
-	var width, height = heightmap.Dimensions()
-	initialCopy := make([]float32, (width + 1) * (height + 1))
-	copy(initialCopy, heightmap.Heightmap())
-	initial := LayerData{
-		rainRate:          make([]float32, (width+1)*(height+1)),
-		velocity:          make([]mgl32.Vec2, (width+1)*(height+1)),
-		// L=0, R=1, T=2, B=3
-		outflowFlux:       make([]mgl32.Vec4, (width+1)*(height+1)),
-		suspendedSediment: make([]float32, (width+1)*(height+1)),
-		waterHeight:       make([]float32, (width+1)*(height+1)),
-		heightmap:        initialCopy,
+	width, height := heightmap.Dimensions()
+	var eroder = CPUEroder{
+		state:                    state,
+		running:                  false,
+		width:                    width,
+		height:                   height,
+		WaterHeightBuffer:        0,
+		WaterHeightBufferTexture: 0,
+		HeightmapBuffer:          0,
+		HeightmapBufferTexture:   0,
+		heightmap:                &heightmap,
+		iterations:               0,
 	}
-	
-	swapCopy := make([]float32, (width + 1) * (height + 1))
-	copy(swapCopy, heightmap.Heightmap())
-	swap := LayerData{
-		rainRate:          make([]float32, (width+1)*(height+1)),
-		velocity:          make([]mgl32.Vec2, (width+1)*(height+1)),
-		outflowFlux:       make([]mgl32.Vec4, (width+1)*(height+1)),
-		suspendedSediment: make([]float32, (width+1)*(height+1)),
-		waterHeight:       make([]float32, (width+1)*(height+1)),
-		heightmap:        swapCopy,
-	}
+	// Initialise layerdata
+	eroder.Reset()
 
-	return &CPUEroder{
-		initial: &initial,
-		swap: &swap,
-		state: state,
-		width: width,
-		height: height,
-	}
+	return &eroder
 }
 
-func (t *CPUEroder) Initialise(heightmap []float32) {
-	t.heightmap = make([]float32, (t.width + 1) * (t.height + 1))
-	t.persistCopy =  make([]float32, (t.width + 1) * (t.height + 1))
+func (t *CPUEroder) Initialise() {
 	t.iterations = 0
-	copy(t.heightmap, heightmap)
-	copy(t.persistCopy, heightmap)
 	// Set a constant rain rate for each cell
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
@@ -89,14 +71,14 @@ func (t *CPUEroder) Initialise(heightmap []float32) {
 
 	gl.GenBuffers(1, &t.HeightmapBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
-	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap), gl.STATIC_DRAW)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.initial.heightmap)*4, gl.Ptr(t.initial.heightmap), gl.STATIC_DRAW)
 	gl.GenTextures(1, &t.HeightmapBufferTexture)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 	
 	// Setup water height buffer and associated storage.
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.initial.waterHeight)*4, gl.Ptr(t.initial.waterHeight), gl.STATIC_DRAW)
 	gl.GenTextures(1, &t.WaterHeightBufferTexture)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 }
@@ -108,14 +90,48 @@ func WithinBounds(index, dimensions int) bool {
 	return false
 }
 
+func (t *CPUEroder) Toggle() {
+	t.running = !t.running
+}
+
+func (t *CPUEroder) newLayerData() *LayerData {
+	var width, height = (*t.heightmap).Dimensions()
+	initialCopy := make([]float32, (width + 1) * (height + 1))
+	copy(initialCopy, (*t.heightmap).Heightmap())
+	return &LayerData{
+		rainRate:          make([]float32, (width+1)*(height+1)),
+		velocity:          make([]mgl32.Vec2, (width+1)*(height+1)),
+		// L=0, R=1, T=2, B=3
+		outflowFlux:       make([]mgl32.Vec4, (width+1)*(height+1)),
+		suspendedSediment: make([]float32, (width+1)*(height+1)),
+		waterHeight:       make([]float32, (width+1)*(height+1)),
+		heightmap:        initialCopy,
+	}
+}
+
+func (t *CPUEroder) Reset() {
+	t.initial = t.newLayerData()
+	t.swap = t.newLayerData()
+}
+
+func (t *CPUEroder) IsRunning() bool {
+	return t.running
+}
+
+func (t *CPUEroder) Update() {
+	if t.running {
+		t.SimulationStep()
+	}
+}
+
 func (t *CPUEroder) UpdateBuffers() {
 	// Update heightmap buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
-	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.heightmap)*4, gl.Ptr(t.swap.heightmap))
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.heightmap)*4, gl.Ptr(t.initial.heightmap))
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 	// Update water height buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight))
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.waterHeight)*4, gl.Ptr(t.initial.waterHeight))
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 
 	// Update the associated textures.

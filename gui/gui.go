@@ -12,18 +12,29 @@ import (
 	"runtime"
 )
 
+type State struct {
+	CameraWindowOpen, SimulationWindowOpen, TerrainWindowOpen bool
+	ButtonsPressed                         [3]bool
+	Time                                   float64
+}
+
 type GUI struct {
 	window *glfw.Window
 	context *imgui.Context
 	renderer *renderers.OpenGL3
+	state *State
 	io imgui.IO
-	buttonsPressed [3]bool
-	time float64
 }
 
 func NewGUI(windowWidth, windowHeight int) (*GUI, error) {
 	runtime.LockOSThread()
 	var g = new(GUI)
+	g.state = &State{
+		CameraWindowOpen:     true,
+		SimulationWindowOpen: true,
+		ButtonsPressed:       [3]bool{},
+		Time:                 0,
+	}
 
 	// Setup imgui
 	g.context = imgui.CreateContext(nil)
@@ -56,24 +67,26 @@ func (g *GUI) GetSize() (int, int) {
 	return g.window.GetSize()
 }
 
-func (g *GUI) Render() {
+func (g *GUI) Render(renderUI func(state *State)) {
 	w, h := g.window.GetSize()
 	displaySize := [2]float32{float32(w), float32(h)}
 	fw, fh := g.window.GetFramebufferSize()
 	fbSize := [2]float32{float32(fw), float32(fh)}
+	renderUI(g.state)
 	g.renderer.Render(displaySize, fbSize, imgui.RenderedDrawData())
 }
 
 func (g *GUI) Update() {
+	state := *g.state
 	w, h := g.window.GetSize()
 	g.io.SetDisplaySize(imgui.Vec2{X: float32(w), Y: float32(h)})
 
-	// Setup time step
+	// Setup Time step
 	currentTime := glfw.GetTime()
-	if g.time > 0 {
-		g.io.SetDeltaTime(float32(currentTime - g.time))
+	if state.Time > 0 {
+		g.io.SetDeltaTime(float32(currentTime - state.Time))
 	}
-	g.time = currentTime
+	state.Time = currentTime
 
 	// Setup inputs
 	if g.window.GetAttrib(glfw.Focused) != 0 {
@@ -83,10 +96,10 @@ func (g *GUI) Update() {
 		g.io.SetMousePosition(imgui.Vec2{X: -math.MaxFloat32, Y: -math.MaxFloat32})
 	}
 
-	for i := 0; i < len(g.buttonsPressed); i++ {
-		down := g.buttonsPressed[i] || (g.window.GetMouseButton(glfwButtonIDByIndex[i]) == glfw.Press)
+	for i := 0; i < len(state.ButtonsPressed); i++ {
+		down := state.ButtonsPressed[i] || (g.window.GetMouseButton(glfwButtonIDByIndex[i]) == glfw.Press)
 		g.io.SetMouseButtonDown(i, down)
-		g.buttonsPressed[i] = false
+		state.ButtonsPressed[i] = false
 	}
 }
 
@@ -148,9 +161,10 @@ var glfwButtonIDByIndex = map[int]glfw.MouseButton{
 
 
 func (g *GUI) mouseButtonChange(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mod glfw.ModifierKey) {
+	state := *g.state
 	buttonIndex, known := glfwButtonIndexByID[button]
 	if known && (action == glfw.Press) {
-		g.buttonsPressed[buttonIndex] = true
+		state.ButtonsPressed[buttonIndex] = true
 	}
 }
 
