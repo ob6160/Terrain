@@ -2,26 +2,22 @@ package main
 
 import "C"
 import (
-	"fmt"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/inkyblackness/imgui-go"
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/erosion"
 	"github.com/ob6160/Terrain/generators"
+	"github.com/ob6160/Terrain/gui"
 	_ "github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
-	"log"
-	"runtime"
 	"time"
 )
 
 const (
 	windowWidth = 1200
 	windowHeight = 800
-	maxVertexBuffer  = 512 * 1024
-	maxElementBuffer = 64 * 1024
-	strBufferSize int32 = 64 * 1024
 	vertexShaderPath = "./shaders/main.vert"
 	fragShaderPath = "./shaders/main.frag"
 )
@@ -48,35 +44,6 @@ type State struct {
 	DebugField []byte
 	DebugFieldLen int32
 	InfoValueString string
-}
-
-
-func init() {
-	// GLFW event handling must run on the main OS thread
-	runtime.LockOSThread()
-}
-
-func setupOpenGl() *glfw.Window {
-	glfw.WindowHint(glfw.Resizable, glfw.False)
-	glfw.WindowHint(glfw.ContextVersionMajor, 4)
-	glfw.WindowHint(glfw.ContextVersionMinor, 3)
-	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
-	window, err := glfw.CreateWindow(windowWidth, windowHeight, "Terrain", nil, nil)
-	if err != nil {
-		panic(err)
-	}
-	window.MakeContextCurrent()
-	// Initialize Glow
-	if err := gl.Init(); err != nil {
-		panic(err)
-	}
-
-	version := gl.GoStr(gl.GetString(gl.VERSION))
-	fmt.Println("OpenGL version", version)
-	fmt.Println("Maximum Max Uniform Block Size: ", gl.MAX_UNIFORM_BLOCK_SIZE)
-
-	return window
 }
 
 func setupUniforms(state *State) {
@@ -128,12 +95,9 @@ func setupUniforms(state *State) {
 }
 
 func main() {
-	if err := glfw.Init(); err != nil {
-		log.Fatalln("failed to initialize GLFW:", err)
-	}
-	defer glfw.Terminate()
-
-	window := setupOpenGl()
+	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
+	defer newGUI.Dispose()
+	
 	var testPlane = core.NewPlane(128,128)
 	var midpointDisp = generators.NewMidPointDisplacement(64,64)
 	midpointDisp.Generate(0.5, 0.5)
@@ -155,21 +119,30 @@ func main() {
 	
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
-		WorldPos: mgl32.Vec3{-200, 200, -200},
-		Uniforms: make(map[string]int32),
-		Plane: testPlane,
-		FOV: 30.0,
-		Height: 0.0,
-		Spread: 0.5,
-		Reduce: 0.5,
-		MidpointGen: midpointDisp,
-		TerrainEroder: terrainEroder,
-		GPUEroder: gpuEroder,
-		ErosionState: &erosionState,
-		DebugField: make([]byte, 1000),
-		DebugFieldLen: 0,
+		Program:         0,
+		Uniforms:        make(map[string]int32),
+		Projection:      mgl32.Mat4{},
+		Camera:          mgl32.Mat4{},
+		CameraPos:       mgl32.Vec3{},
+		WorldPos:        mgl32.Vec3{-200, 200, -200},
+		TerrainHitPos:   mgl32.Vec3{},
+		Model:           mgl32.Mat4{},
+		MousePos:        mgl32.Vec4{},
+		Angle:           0,
+		Height:          0.0,
+		FOV:             30.0,
+		Plane:           testPlane,
+		MidpointGen:     midpointDisp,
+		TerrainEroder:   terrainEroder,
+		GPUEroder:       gpuEroder,
+		Spread:          0.5,
+		Reduce:          0.5,
+		ErosionState:    &erosionState,
+		DebugField:      make([]byte, 1000),
+		DebugFieldLen:   0,
 		InfoValueString: "",
 	}
+
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
@@ -184,8 +157,7 @@ func main() {
 	state.TerrainEroder.Initialise(midpointDisp.Heightmap())
 
 	state.Plane.Construct(64, 64)
-
-
+	
 	state.TerrainEroder.SimulationStep()
 	state.TerrainEroder.SimulationStep()
 
@@ -200,18 +172,17 @@ func main() {
 	for {
 		select {
 		case <-exitC:
-			glfw.Terminate()
 			fpsTicker.Stop()
 			close(doneC)
 			return
 		case t := <-fpsTicker.C:
-			if window.ShouldClose() {
+			if newGUI.ShouldClose() {
 				close(exitC)
 				continue
 			}
 
 			glfw.PollEvents()
-			render(window, state, t)
+			render(newGUI, state, t)
 		}
 	}
 }
@@ -227,9 +198,19 @@ func updateUniforms(state *State) {
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 }
 
-func render(win *glfw.Window, state *State, timer time.Time) {
+func render(gui *gui.GUI, state *State, timer time.Time) {
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+	gui.Update()
+	imgui.NewFrame()
+	{
+		open := true
+		imgui.ShowDemoWindow(&open)
+	}
+	imgui.Render()
+
+	// Start Terrain render
 
 	gl.UseProgram(state.Program)
 	updateUniforms(state)
@@ -242,5 +223,10 @@ func render(win *glfw.Window, state *State, timer time.Time) {
 
 	state.Plane.M().Draw()
 
-	win.SwapBuffers()
+	// Start IMGUI render
+	gui.Render()
+
+	width, height := gui.GetSize()
+	gl.Viewport(0, 0, int32(width), int32(height))
+	gui.SwapBuffers()
 }
