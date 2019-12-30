@@ -203,15 +203,24 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
 	if imgui.BeginV("Options", &guiState.CameraWindowOpen, imgui.WindowFlagsMenuBar) {
 		if imgui.TreeNodeV("Camera", treeNodeFlags) {
-			imgui.SliderFloat("FOV", &coreState.FOV, 0.0, 100.0)
-			imgui.SliderFloat("Angle", &coreState.Angle, 0.0, math.Pi*2.0)
+			imgui.PushItemWidth(80)
+			{
+				imgui.SliderFloat("FOV", &coreState.FOV, 0.0, 100.0)
+				imgui.SameLine()
+				imgui.SliderFloat("Angle", &coreState.Angle, 0.0, math.Pi*2.0)
+				imgui.PopItemWidth()
+			}
 			imgui.TreePop()
 		}
 		imgui.Separator()
 		if imgui.TreeNodeV("Terrain", treeNodeFlags) {
-			imgui.SliderFloat("Height", &coreState.Height, 0.0, 100.0)
-			imgui.SliderFloat("Spread", &coreState.Spread, 0.0, 10.0)
-			imgui.SliderFloat("Reduce", &coreState.Reduce, 0.0, 10.0)
+			imgui.PushItemWidth(80)
+			{
+				imgui.SliderFloat("Height", &coreState.Height, 0.0, 100.0)
+				imgui.SliderFloat("Spread", &coreState.Spread, 0.0, 10.0)
+				imgui.SliderFloat("Reduce", &coreState.Reduce, 0.0, 10.0)
+				imgui.PopItemWidth()
+			}
 			if imgui.Button("Regenerate Terrain") {
 				coreState.MidpointGen.Generate(coreState.Spread, coreState.Reduce)
 				coreState.TerrainEroder.Reset()
@@ -222,15 +231,35 @@ func (coreState *State) renderUI(guiState *gui.State) {
 		imgui.Separator()
 		if imgui.TreeNodeV("Simulation", treeNodeFlags) {
 			runningLabel := "Start Simulation"
-			if coreState.TerrainEroder.IsRunning() {
-				runningLabel = "Stop Simulation"
+			if imgui.TreeNodeV("Control", treeNodeFlags) {
+				if coreState.TerrainEroder.IsRunning() {
+					runningLabel = "Stop Simulation"
+				}
+				if imgui.Button(runningLabel) {
+					coreState.TerrainEroder.Toggle()
+				}
+				imgui.SameLine()
+				if imgui.Button("Step Simulation") {
+					coreState.TerrainEroder.SimulationStep()
+					coreState.TerrainEroder.SimulationStep()
+				}
+				if imgui.Button("Reset Simulation") {
+					coreState.TerrainEroder.Reset()
+					coreState.TerrainEroder.Initialise()
+				}
+				imgui.TreePop()
 			}
-			if imgui.Button(runningLabel) {
-				coreState.TerrainEroder.Toggle()
+			if imgui.TreeNodeV("Settings", treeNodeFlags) {
+				imgui.PushItemWidth(80)
+				{
+					imgui.SliderFloat("Delta Time", &coreState.ErosionState.TimeStep, 0.001, 0.05)
+					imgui.SliderFloat("Evaporation Rate", &coreState.ErosionState.EvaporationRate, 0.001, 1.0)
+					imgui.SliderFloat("Water Increment Rate", &coreState.ErosionState.WaterIncrementRate, 0.001, 0.05)
+					imgui.PopItemWidth()
+				}
+				imgui.TreePop()
 			}
-			if imgui.Button("Step Simulation") {
-				coreState.TerrainEroder.SimulationStep()
-			}
+
 			imgui.TreePop()
 		}
 		imgui.End()

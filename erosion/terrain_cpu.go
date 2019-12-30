@@ -60,6 +60,7 @@ func NewCPUEroder(heightmap generators.TerrainGenerator, state*State) *CPUEroder
 
 func (t *CPUEroder) Initialise() {
 	t.iterations = 0
+	t.running = false
 	// Set a constant rain rate for each cell
 	// TODO: Customise the area that is being rained on?
 	// TODO: Single point sources, multiple point sources of custom radius.
@@ -406,7 +407,7 @@ func (t *CPUEroder) SimulationStep() {
 				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
 
 				var a = mgl32.Vec2{float32(math.Floor(float64(dVel.X()))), float32(math.Floor(float64(dVel.Y())))}
-				var b = mgl32.Vec2{float32(math.Ceil(float64(dVel.X()))), float32(math.Ceil(float64(dVel.Y())))}
+				var b = mgl32.Vec2{a.X() + 1, a.Y() + 1}
 				
 				var dd = dVel.Sub(a)
 
