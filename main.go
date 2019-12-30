@@ -12,6 +12,7 @@ import (
 	"github.com/ob6160/Terrain/gui"
 	_ "github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
+	"math"
 	"time"
 )
 
@@ -205,8 +206,11 @@ func render(gui *gui.GUI, state *State, timer time.Time) {
 	gui.Update()
 	imgui.NewFrame()
 	{
-		open := true
-		imgui.ShowDemoWindow(&open)
+		imgui.SetNextWindowSize(imgui.Vec2{X: 200, Y: 100})
+		imgui.Begin("Camera Settings")
+		imgui.SliderFloat("FOV", &state.FOV, 0.0, 100.0)
+		imgui.SliderFloat("Angle", &state.Angle, 0.0, math.Pi*2.0)
+		imgui.End()
 	}
 	imgui.Render()
 
