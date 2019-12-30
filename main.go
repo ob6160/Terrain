@@ -201,7 +201,8 @@ func updateUniforms(state *State) {
 func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.NewFrame()
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
-	if imgui.BeginV("Options", &guiState.CameraWindowOpen, imgui.WindowFlagsMenuBar) {
+	windowFlags := imgui.WindowFlagsMenuBar|imgui.WindowFlagsNoMove
+	if imgui.BeginV("Terrain", &guiState.CameraWindowOpen, windowFlags) {
 		if imgui.TreeNodeV("Camera", treeNodeFlags) {
 			imgui.PushItemWidth(80)
 			{
@@ -262,8 +263,8 @@ func (coreState *State) renderUI(guiState *gui.State) {
 
 			imgui.TreePop()
 		}
-		imgui.End()
 	}
+	imgui.End()
 	imgui.Render()
 }
 
