@@ -389,7 +389,7 @@ func (t *CPUEroder) SimulationStep() {
 				t.swap.heightmap[i] -= delta
 				t.swap.suspendedSediment[i] += delta
 			} else {
-				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (sediment - carryCapacity)
+				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
 				t.swap.heightmap[i] += delta
 				t.swap.suspendedSediment[i] -= delta
 			}
@@ -402,40 +402,13 @@ func (t *CPUEroder) SimulationStep() {
 		for x := 0; x < t.width; x++ {
 			for y := 0; y < t.height; y++ {
 				var i = utils.ToIndex(x, y, t.width)
-				var pos = mgl32.Vec2{float32(x), float32(y)}
 				var vel = t.swap.velocity[i]
-				var dVel = pos.Sub(vel.Mul(t.state.TimeStep))
-
-				var a = mgl32.Vec2{float32(math.Floor(float64(dVel.X()))), float32(math.Floor(float64(dVel.Y())))}
-				var b = mgl32.Vec2{a.X() + 1, a.Y() + 1}
-				
-				var dd = dVel.Sub(a)
-
-				var i1Val float32 = 0.0
-				i1 := utils.ToIndex(int(a.X()), int(a.Y()), t.width)
-				if WithinBounds(i1, dimensions) {
-					i1Val = t.initial.suspendedSediment[i1]
+				var aVal float32 = 0.0
+				var aCoord = utils.ToIndex(int(float32(x) - vel.X() * t.state.TimeStep), int(float32(y) - vel.Y() * t.state.TimeStep), t.width)
+				if WithinBounds(aCoord, dimensions) {
+					aVal = t.initial.suspendedSediment[aCoord]
 				}
-				var i2Val float32 = 0.0
-				i2 := utils.ToIndex(int(b.X()), int(a.Y()), t.width)
-				if WithinBounds(i2, dimensions) {
-					i2Val = t.initial.suspendedSediment[i2]
-				}
-				var i3Val float32 = 0.0
-				i3 := utils.ToIndex(int(a.X()), int(b.Y()), t.width)
-				if WithinBounds(i3, dimensions) {
-					i3Val = t.initial.suspendedSediment[i3]
-				}
-				var i4Val float32 = 0.0
-				i4 := utils.ToIndex(int(b.X()), int(b.Y()), t.width)
-				if WithinBounds(i4, dimensions) {
-					i4Val = t.initial.suspendedSediment[i4]
-				}
-
-				t.swap.suspendedSediment[i] = i1Val * (1 - dd.X()) * (1- dd.Y()) +
-					i2Val * dd.X() * (1 - dd.Y()) +
-					i3Val * (1 - dd.X()) * dd.Y() +
-					i4Val * dd.X() * dd.Y()
+				t.swap.suspendedSediment[i] = aVal
 			}
 		}
 	}

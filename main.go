@@ -99,8 +99,8 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 	
-	var testPlane = core.NewPlane(128,128)
-	var midpointDisp = generators.NewMidPointDisplacement(64,64)
+	var testPlane = core.NewPlane(512,512)
+	var midpointDisp = generators.NewMidPointDisplacement(512,512)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
@@ -156,7 +156,7 @@ func main() {
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise()
-	state.Plane.Construct(64, 64)
+	state.Plane.Construct(512, 512)
 
 
 	exitC := make(chan struct{}, 1)
