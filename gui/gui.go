@@ -132,6 +132,13 @@ func (g* GUI) InitialiseGLFW(windowWidth, windowHeight int) *glfw.Window {
 	version := gl.GoStr(gl.GetString(gl.VERSION))
 	fmt.Println("OpenGL version", version)
 	fmt.Println("Maximum Max Uniform Block Size: ", gl.MAX_UNIFORM_BLOCK_SIZE)
+	var workGroupInvocationsI int32
+	var workGroupInvocationsJ int32
+	var workGroupInvocationsK int32
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 0, &workGroupInvocationsI)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 1, &workGroupInvocationsJ)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 2, &workGroupInvocationsK)
+	fmt.Println("Maximum work group count: x: ", workGroupInvocationsI, "y: ", workGroupInvocationsJ, "z: ", workGroupInvocationsK)
 	return window
 }
 

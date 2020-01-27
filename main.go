@@ -153,10 +153,10 @@ func main() {
 	setupUniforms(state)
 
 	// Setup terrain
-	state.MidpointGen.Generate(state.Spread, state.Reduce)
-	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
-	state.TerrainEroder.Initialise()
-	state.Plane.Construct(256, 256)
+	//state.MidpointGen.Generate(state.Spread, state.Reduce)
+	//state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
+	//state.TerrainEroder.Initialise()
+	//state.Plane.Construct(256, 256)
 
 
 	exitC := make(chan struct{}, 1)
@@ -181,7 +181,7 @@ func main() {
 			
 			glfw.PollEvents()
 			newGUI.Update()
-			state.TerrainEroder.Update()
+			//state.TerrainEroder.Update()
 			render(newGUI, state, t)
 		}
 	}

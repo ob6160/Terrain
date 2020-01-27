@@ -24,11 +24,41 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 }
 
 func (e *GPUEroder) setupShaders() {
-	var waterProgram, err = core.NewComputeProgramFromPath("./shaders/WaterPass.comp")
-	if err != nil {
-		panic(err)
+	var waterProgram, err1 = core.NewComputeProgramFromPath("./shaders/WaterPass.comp")
+	if err1 != nil {
+		panic(err1)
+	}
+
+	var outflowProgram, err2 = core.NewComputeProgramFromPath("./shaders/OutFlow.comp")
+	if err2 != nil {
+		panic(err2)
+	}
+
+	var waterHeightProgram, err3 = core.NewComputeProgramFromPath("./shaders/WaterHeight.comp")
+	if err3 != nil {
+		panic(err3)
+	}
+
+	var velocityProgram, err4 = core.NewComputeProgramFromPath("./shaders/Velocity.comp")
+	if err4 != nil {
+		panic(err4)
+	}
+
+	var erosionProgram, err5 = core.NewComputeProgramFromPath("./shaders/Erosion.comp")
+	if err5 != nil {
+		panic(err5)
+	}
+
+	var sedimentProgram, err6 = core.NewComputeProgramFromPath("./shaders/Sediment.comp")
+	if err6 != nil {
+		panic(err6)
 	}
 	gl.UseProgram(waterProgram)
+	gl.UseProgram(outflowProgram)
+	gl.UseProgram(waterHeightProgram)
+	gl.UseProgram(velocityProgram)
+	gl.UseProgram(erosionProgram)
+	gl.UseProgram(sedimentProgram)
 }
 
 func (e *GPUEroder) setupFBO() {
@@ -66,6 +96,8 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 }
 
-func Pass() {
+func (e *GPUEroder) Pass() {
 	// Render a plane to the FBO
+	width, height := e.heightmap.Dimensions()
+	gl.DispatchCompute(uint32(width), uint32(height), 1)
 }

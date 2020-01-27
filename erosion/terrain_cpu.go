@@ -65,10 +65,6 @@ func (t *CPUEroder) Initialise() {
 
 	// Water Height Update (from rainRate array or constant water sources).
 	// Modify based on the constant rain volume array.
-
-
-
-
 	gl.GenBuffers(1, &t.HeightmapBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
 	gl.BufferData(gl.TEXTURE_BUFFER, len(t.initial.heightmap)*4, gl.Ptr(t.initial.heightmap), gl.STATIC_DRAW)
