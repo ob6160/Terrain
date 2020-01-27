@@ -272,26 +272,46 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-	// Render Terrain
-	{
-		gl.UseProgram(coreState.Program)
-		updateUniforms(coreState)
-		coreState.TerrainEroder.UpdateBuffers()
-		{
-			gl.ActiveTexture(gl.TEXTURE0)
-			gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
-			gl.ActiveTexture(gl.TEXTURE1)
-			gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
-		}
-		coreState.Plane.M().Draw()
-	}
+	// Render Terrain CPU
+	//{
+	//	gl.UseProgram(coreState.Program)
+	//	updateUniforms(coreState)
+	//	coreState.TerrainEroder.UpdateBuffers()
+	//	{
+	//		gl.ActiveTexture(gl.TEXTURE0)
+	//		gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
+	//		gl.ActiveTexture(gl.TEXTURE1)
+	//		gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
+	//	}
+	//	coreState.Plane.M().Draw()
+	//}
+
+	// Render Terrain GPU
+	//{
+	//	gl.UseProgram(coreState.Program)
+	//	updateUniforms(coreState)
+	//	coreState.TerrainEroder.UpdateBuffers()
+	//	{
+	//		gl.ActiveTexture(gl.TEXTURE0)
+	//		gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
+	//		gl.ActiveTexture(gl.TEXTURE1)
+	//		gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
+	//	}
+	//	coreState.Plane.M().Draw()
+	//}
+	width, height := g.GetSize()
+	coreState.GPUEroder.Bind()
+	coreState.GPUEroder.Pass()
+
+	gl.BlitFramebuffer(0,0, int32(200), int32(200),
+		0, 0, int32(200), int32(200), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 
 	// Render UI
-	{
-		g.Render(coreState.renderUI)
-	}
+	//{
+	//	g.Render(coreState.renderUI)
+	//}
 
-	width, height := g.GetSize()
+
 	gl.Viewport(0, 0, int32(width), int32(height))
 	g.SwapBuffers()
 }
