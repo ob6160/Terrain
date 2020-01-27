@@ -99,16 +99,16 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 	
-	var testPlane = core.NewPlane(512,512)
-	var midpointDisp = generators.NewMidPointDisplacement(512,512)
+	var testPlane = core.NewPlane(256,256)
+	var midpointDisp = generators.NewMidPointDisplacement(256,256)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
 		WaterIncrementRate:     0.012,
-		GravitationalConstant:  9.81,
+		GravitationalConstant: 9.8,
 		PipeCrossSectionalArea: 20,
-		EvaporationRate:        0.015,
-		TimeStep:               0.02,
+		EvaporationRate:        0.15,
+		TimeStep:               0.002,
 		IsRaining: true,
 		SedimentCarryCapacity: 1.0,
 		SoilDepositionRate: 1.0,
@@ -131,7 +131,7 @@ func main() {
 		MousePos:        mgl32.Vec4{},
 		Angle:           0,
 		Height:          0.0,
-		FOV:             30.0,
+		FOV:             50.0,
 		Plane:           testPlane,
 		MidpointGen:     midpointDisp,
 		TerrainEroder:   terrainEroder,
@@ -156,7 +156,7 @@ func main() {
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise()
-	state.Plane.Construct(512, 512)
+	state.Plane.Construct(256, 256)
 
 
 	exitC := make(chan struct{}, 1)
@@ -255,7 +255,7 @@ func (coreState *State) renderUI(guiState *gui.State) {
 				{
 					imgui.SliderFloat("Delta Time", &coreState.ErosionState.TimeStep, 0.001, 0.05)
 					imgui.SliderFloat("Evaporation Rate", &coreState.ErosionState.EvaporationRate, 0.001, 1.0)
-					imgui.SliderFloat("Water Increment Rate", &coreState.ErosionState.WaterIncrementRate, 0.001, 0.05)
+					imgui.SliderFloat("Water Increment Rate", &coreState.ErosionState.WaterIncrementRate, 0.001, 0.01)
 					imgui.PopItemWidth()
 				}
 				imgui.TreePop()

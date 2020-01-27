@@ -61,14 +61,13 @@ func NewCPUEroder(heightmap generators.TerrainGenerator, state*State) *CPUEroder
 func (t *CPUEroder) Initialise() {
 	t.iterations = 0
 	t.running = false
-	// Set a constant rain rate for each cell
-	// TODO: Customise the area that is being rained on?
-	// TODO: Single point sources, multiple point sources of custom radius.
-	for i := range t.initial.rainRate {
-		var val float32 = 0.1
-		t.initial.rainRate[i] = val
-		t.swap.rainRate[i] = val
-	}
+
+
+	// Water Height Update (from rainRate array or constant water sources).
+	// Modify based on the constant rain volume array.
+
+
+
 
 	gl.GenBuffers(1, &t.HeightmapBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.HeightmapBuffer)
@@ -79,7 +78,7 @@ func (t *CPUEroder) Initialise() {
 	// Setup water height buffer and associated storage.
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferData(gl.TEXTURE_BUFFER, len(t.initial.waterHeight)*4, gl.Ptr(t.initial.waterHeight), gl.STATIC_DRAW)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
 	gl.GenTextures(1, &t.WaterHeightBufferTexture)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 }
@@ -132,7 +131,7 @@ func (t *CPUEroder) UpdateBuffers() {
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 	// Update water height buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.waterHeight)*4, gl.Ptr(t.initial.waterHeight))
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.suspendedSediment)*4, gl.Ptr(t.initial.suspendedSediment))
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 
 	// Update the associated textures.
@@ -147,6 +146,8 @@ func (t *CPUEroder) UpdateBuffers() {
 }
 
 func (t *CPUEroder) SimulationStep() {
+
+
 	// == Shallow water flow simulation ==
 	var initial = *t.initial
 	var swap = *t.swap
@@ -155,12 +156,9 @@ func (t *CPUEroder) SimulationStep() {
 	t.iterations++
 	println(fmt.Sprintf("%d Iterations", t.iterations))
 
-
-	// Water Height Update (from rainRate array or constant water sources).
-	// Modify based on the constant rain volume array.
-	for i := range initial.heightmap {
+	for i := range t.initial.heightmap {
 		if t.state.IsRaining {
-			swap.waterHeight[i] += initial.rainRate[i] * t.state.TimeStep * t.state.WaterIncrementRate
+			t.initial.waterHeight[i] += t.state.TimeStep * t.state.WaterIncrementRate
 		}
 	}
 
@@ -168,19 +166,19 @@ func (t *CPUEroder) SimulationStep() {
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
 			var i = utils.ToIndex(x, y, t.width)
-			var iL, iR, iT, iB = swap.outflowFlux[i].Elem()
+			var iL, iR, iT, iB = initial.outflowFlux[i].Elem()
 			var landHeight = initial.heightmap[i]
-			var waterHeight = swap.waterHeight[i]
+			var waterHeight = initial.waterHeight[i]
 
 			var currentHeight = landHeight + waterHeight
 
 			var pressure = t.state.TimeStep*t.state.PipeCrossSectionalArea*t.state.GravitationalConstant
-			
+
 			var leftIndex = utils.ToIndex(x - 1, y, t.width)
 			var leftOutflow = 0.0
 			if WithinBounds(leftIndex, dimensions) {
 				var leftHeight = initial.heightmap[leftIndex]
-				leftHeightDiff := currentHeight - (leftHeight + swap.waterHeight[leftIndex])
+				leftHeightDiff := currentHeight - (leftHeight + initial.waterHeight[leftIndex])
 				leftOutflow = math.Max(0.0, float64(iL + pressure * leftHeightDiff))
 			}
 
@@ -188,7 +186,7 @@ func (t *CPUEroder) SimulationStep() {
 			var rightOutflow = 0.0
 			if WithinBounds(rightIndex, dimensions) {
 				var rightHeight = initial.heightmap[rightIndex]
-				rightHeightDiff := currentHeight - (rightHeight + swap.waterHeight[rightIndex])
+				rightHeightDiff := currentHeight - (rightHeight + initial.waterHeight[rightIndex])
 				rightOutflow = math.Max(0.0, float64(iR + pressure * rightHeightDiff))
 			}
 
@@ -196,29 +194,28 @@ func (t *CPUEroder) SimulationStep() {
 			var topOutflow = 0.0
 			if WithinBounds(topIndex, dimensions) {
 				var topHeight = initial.heightmap[topIndex]
-				topHeightDiff := currentHeight - (topHeight + swap.waterHeight[topIndex])
+				topHeightDiff := currentHeight - (topHeight + initial.waterHeight[topIndex])
 				topOutflow = math.Max(0, float64(iT + pressure * topHeightDiff))
-
 			}
 
 			var bottomIndex = utils.ToIndex(x, y + 1, t.width)
 			var bottomOutflow = 0.0
 			if WithinBounds(bottomIndex, dimensions) {
 				var bottomHeight = initial.heightmap[bottomIndex]
-				bottomHeightDiff := currentHeight - (bottomHeight + swap.waterHeight[bottomIndex])
+				bottomHeightDiff := currentHeight - (bottomHeight + initial.waterHeight[bottomIndex])
 				bottomOutflow = math.Max(0, float64(iB + pressure * bottomHeightDiff))
 			}
 
 			if x == 0  {
-				rightOutflow = 0.0
+				leftOutflow = 0.0
 			}
 
 			if y == 0 {
-				topOutflow = 0
+				topOutflow = 0.0
 			}
 
 			if x == t.width - 1 {
-				leftOutflow = 0.0
+				rightOutflow = 0.0
 			}
 
 			if y == t.height - 1 {
@@ -265,7 +262,7 @@ func (t *CPUEroder) SimulationStep() {
 			if WithinBounds(topIndex, dimensions) {
 				_, _, _, topCellInflow = swap.outflowFlux[topIndex].Elem()
 			}
-			
+
 			var bottomIndex = utils.ToIndex(x, y + 1, t.width)
 			var bottomCellInflow float32 = 0
 			if WithinBounds(bottomIndex, dimensions) {
@@ -279,11 +276,12 @@ func (t *CPUEroder) SimulationStep() {
 			var inFlow = leftCellInflow + rightCellInflow + topCellInflow + bottomCellInflow
 
 			var TimeStepWaterHeight = t.state.TimeStep * ( inFlow - outFlow )
-			swap.waterHeight[i] += TimeStepWaterHeight
+			t.swap.waterHeight[i] +=  TimeStepWaterHeight
 			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
-			t.swap.waterHeight[i] = float32(math.Max(0, float64(t.swap.waterHeight[i])))
+			t.swap.waterHeight[i] = float32(math.Max(0.0, float64(t.swap.waterHeight[i])))
 		}
 	}
+
 
 	// Velocity Field calculation
 	for x := 0; x < t.width; x++ {
@@ -317,28 +315,18 @@ func (t *CPUEroder) SimulationStep() {
 			}
 
 			var velX = (leftInFlow - centreLeft + centreRight - rightInFlow) * 0.5
-			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow ) * 0.5
+			var velY = (topInFlow - centreTop + centreBottom - bottomInFlow) * 0.5
 			t.swap.velocity[i] = mgl32.Vec2{velX, velY}
-
 		}
 	}
 
 	for x := 0; x < t.width; x++ {
 		for y := 0; y < t.height; y++ {
-			// Plan:
-
-			// Find delta in height between the Left and Right neighbours
-			// Find delta in height between the Top and Bottom neighbours
-			// Use deltas to find the normal
-			// Take y coordinate of normal and divide through by magnitude to find the sin(tilt_angle)
-			// If out of bounds, use the central value TODO: make a note of this in the writeup?
-			// =========
-			var dimensions = len(t.initial.heightmap)
 			var i = utils.ToIndex(x, y, t.width)
-			var li = utils.ToIndex(x - 1, y, t.width)
-			var ri = utils.ToIndex(x + 1, y, t.width)
-			var ti = utils.ToIndex(x, y - 1, t.width)
-			var bi = utils.ToIndex(x, y + 1, t.width)
+			var li = utils.ToIndex(x-1, y, t.width)
+			var ri = utils.ToIndex(x+1, y, t.width)
+			var ti = utils.ToIndex(x, y-1, t.width)
+			var bi = utils.ToIndex(x, y+1, t.width)
 
 			var centralValue = t.initial.heightmap[i]
 
@@ -365,13 +353,14 @@ func (t *CPUEroder) SimulationStep() {
 			var dx = rh - lh
 			var dy = th - bh
 
-			var dxv = mgl32.Vec3{2, dx, 0}
-			var dyv = mgl32.Vec3{0, dy, 2}
+			var dxv = mgl32.Vec3{1, dx, 0}
+			var dyv = mgl32.Vec3{0, dy, 1}
 			var normal = dxv.Cross(dyv)
-			var tiltAngle = math.Abs(float64(normal.Y())) / float64(normal.Len())
-			var sediment = t.swap.suspendedSediment[i]
-			var waterHeight = t.swap.waterHeight[i]
+			var tiltAngle = (math.Abs(float64(normal.Y()))) / float64(normal.Len())
+
+			var waterHeight = t.initial.waterHeight[i]
 			var velocity = t.swap.velocity[i].Len()
+			var sediment = t.initial.suspendedSediment[i]
 
 			var maximum float32 = 0
 			if waterHeight <= 0 {
@@ -379,22 +368,24 @@ func (t *CPUEroder) SimulationStep() {
 			} else if waterHeight >= t.state.MaximalErodeDepth {
 				maximum = 1
 			} else {
-				maximum = 1 - (t.state.MaximalErodeDepth - waterHeight) / t.state.MaximalErodeDepth
+				maximum = 1 - (t.state.MaximalErodeDepth-waterHeight)/t.state.MaximalErodeDepth
 			}
 
 			var carryCapacity = t.state.SedimentCarryCapacity * velocity * float32(math.Min(tiltAngle, 0.05)) * maximum
 
 			if sediment < carryCapacity {
-				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (carryCapacity - sediment)
+				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
 				t.swap.heightmap[i] -= delta
 				t.swap.suspendedSediment[i] += delta
+				t.swap.waterHeight[i] += delta
 			} else {
-				var delta = t.state.TimeStep * t.state.SoilSuspensionRate * (carryCapacity - sediment)
+				var delta = t.state.TimeStep * t.state.SoilDepositionRate * (sediment - carryCapacity)
 				t.swap.heightmap[i] += delta
 				t.swap.suspendedSediment[i] -= delta
+				t.swap.waterHeight[i] -= delta
 			}
 
-			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate * t.state.TimeStep
+			t.swap.waterHeight[i] *= 1 - t.state.EvaporationRate*t.state.TimeStep
 			t.swap.waterHeight[i] = float32(math.Max(0, float64(t.swap.waterHeight[i])))
 			t.swap.heightmap[i] = float32(math.Max(0, float64(t.swap.heightmap[i])))
 		}
@@ -404,18 +395,37 @@ func (t *CPUEroder) SimulationStep() {
 				var i = utils.ToIndex(x, y, t.width)
 				var vel = t.swap.velocity[i]
 				var aVal float32 = 0.0
-				var aCoord = utils.ToIndex(int(float32(x) - vel.X() * t.state.TimeStep), int(float32(y) - vel.Y() * t.state.TimeStep), t.width)
+				var aCoord = utils.ToIndex(int(float32(x)-vel.X()*t.state.TimeStep), int(float32(y)-vel.Y()*t.state.TimeStep), t.width)
+				aVal = t.initial.suspendedSediment[i]
+
 				if WithinBounds(aCoord, dimensions) {
-					aVal = t.initial.suspendedSediment[aCoord]
+					t.swap.suspendedSediment[i] = t.initial.suspendedSediment[i] - aVal
+					t.swap.suspendedSediment[aCoord] = t.initial.suspendedSediment[aCoord] + aVal
 				}
-				t.swap.suspendedSediment[i] = aVal
+
 			}
 		}
 	}
 
 
+	// Copy swap into initial
+	copy(t.initial.waterHeight, t.swap.waterHeight)
+	copy(t.initial.rainRate, t.swap.rainRate)
+	copy(t.initial.velocity, t.swap.velocity)
+	copy(t.initial.outflowFlux, t.swap.outflowFlux)
+	copy(t.initial.suspendedSediment, t.swap.suspendedSediment)
+	copy(t.initial.heightmap, t.swap.heightmap)
+
 
 	*t.initial, *t.swap = *t.swap, *t.initial
+
+	//
+
+	//}
+
+
+
+	//*t.initial, *t.swap = *t.swap, *t.initial
 	// Cell sediment carry capacity calculation
 
 	// Erode / Deposit material based on the carry capacity
