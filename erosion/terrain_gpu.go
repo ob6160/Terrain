@@ -4,9 +4,14 @@ import (
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
+	"github.com/ob6160/Terrain/utils"
+	_"github.com/ob6160/Terrain/utils"
 )
 type GPUEroder struct {
 	heightmap generators.TerrainGenerator
+	
+	heightDataPack []float32
+	
 	frameBuffer uint32
 	outflowColorBuffer uint32 // o1, o2, o3, o4
 	velocityColorBuffer uint32 // vX, vY
@@ -61,6 +66,22 @@ func (e *GPUEroder) Bind() {
 
 func (e *GPUEroder) setupTextures() {
 	var width, height = e.heightmap.Dimensions()
+	heightmap := e.heightmap.Heightmap()
+
+	// Place heightmap data into our packed array (for sending to GPU)
+	e.heightDataPack = make([]float32, (width) * (height) * 4)
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			index := utils.ToIndex(x, y, width)
+			height := heightmap[index]
+			location := (x + (y * width)) * 4
+			e.heightDataPack[location + 0] = height
+			e.heightDataPack[location + 1] = height
+			e.heightDataPack[location + 2] = height
+			e.heightDataPack[location + 3] = 1.0
+		}
+	}
+	
 	// Gen textures
 	//gl.GenTextures(1, &e.outflowColorBuffer)
 	//gl.GenTextures(1, &e.velocityColorBuffer)
@@ -70,10 +91,12 @@ func (e *GPUEroder) setupTextures() {
 	// Create texture for height, waterHeight, sediment
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, e.heightColorBuffer)
+
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.heightDataPack))
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, int32(width), int32(height))
-	gl.BindImageTexture(0, e.heightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA8)
+	gl.BindImageTexture(0, e.heightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 
 	gl.GenFramebuffers(1, &e.frameBuffer)

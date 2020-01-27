@@ -99,8 +99,8 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 	
-	var testPlane = core.NewPlane(256,256)
-	var midpointDisp = generators.NewMidPointDisplacement(256,256)
+	var testPlane = core.NewPlane(512,512)
+	var midpointDisp = generators.NewMidPointDisplacement(512,512)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
@@ -303,8 +303,8 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	coreState.GPUEroder.Bind()
 	coreState.GPUEroder.Pass()
 
-	gl.BlitFramebuffer(0,0, int32(200), int32(200),
-		0, 0, int32(200), int32(200), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BlitFramebuffer(0,0, int32(width), int32(height),
+		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 
 	// Render UI
 	//{
