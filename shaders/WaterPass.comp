@@ -4,9 +4,16 @@ layout (local_size_x = 1, local_size_y = 1) in;
 layout (rgba32f, binding = 0) uniform highp image2D heightTex;
 layout (rgba32f, binding = 1) uniform highp image2D outflowTex;
 layout (rgba32f, binding = 2) uniform highp image2D velocityTex;
+
+// uniform: deltaTime
+
+
 void main() {
     vec4 texel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     texel = imageLoad(heightTex, storePos);
-    imageStore(heightTex, storePos, vec4(texel.rgb, 1.0));
+
+    texel.g += texel.a * 0.01; // * deltaTime
+
+    imageStore(heightTex, storePos, texel);
 }
