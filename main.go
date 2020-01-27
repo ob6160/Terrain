@@ -110,9 +110,9 @@ func main() {
 		EvaporationRate:        0.15,
 		TimeStep:               0.002,
 		IsRaining: true,
-		SedimentCarryCapacity: 1.0,
-		SoilDepositionRate: 1.0,
-		SoilSuspensionRate: 0.5,
+		SedimentCarryCapacity: 2.0,
+		SoilDepositionRate: 0.05,
+		SoilSuspensionRate: 0.04,
 		MaximalErodeDepth: 0.001,
 	}
 	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)

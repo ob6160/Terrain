@@ -78,7 +78,7 @@ func (t *CPUEroder) Initialise() {
 	// Setup water height buffer and associated storage.
 	gl.GenBuffers(1, &t.WaterHeightBuffer)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.suspendedSediment)*4, gl.Ptr(t.swap.suspendedSediment), gl.STATIC_DRAW)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(t.swap.waterHeight)*4, gl.Ptr(t.swap.waterHeight), gl.STATIC_DRAW)
 	gl.GenTextures(1, &t.WaterHeightBufferTexture)
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 }
@@ -131,7 +131,7 @@ func (t *CPUEroder) UpdateBuffers() {
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 	// Update water height buffer data.
 	gl.BindBuffer(gl.TEXTURE_BUFFER, t.WaterHeightBuffer)
-	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.suspendedSediment)*4, gl.Ptr(t.initial.suspendedSediment))
+	gl.BufferSubData(gl.TEXTURE_BUFFER, 0, len(t.initial.waterHeight)*4, gl.Ptr(t.initial.waterHeight))
 	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
 
 	// Update the associated textures.
