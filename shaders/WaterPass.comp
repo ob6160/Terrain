@@ -8,6 +8,5 @@ void main() {
     vec4 texel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     texel = imageLoad(heightTex, storePos);
-
     imageStore(heightTex, storePos, vec4(texel.rgb, 1.0));
 }

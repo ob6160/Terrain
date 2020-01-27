@@ -7,11 +7,16 @@ import (
 	"github.com/ob6160/Terrain/utils"
 	_"github.com/ob6160/Terrain/utils"
 )
+
+type PackedData struct {
+	heightData []float32
+	velocityData []float32
+	outflowData []float32
+}
+
 type GPUEroder struct {
 	heightmap generators.TerrainGenerator
-	
-	heightDataPack []float32
-	
+	simulationState *PackedData
 	frameBuffer uint32
 	outflowColorBuffer uint32 // o1, o2, o3, o4
 	velocityColorBuffer uint32 // vX, vY
@@ -23,8 +28,92 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	var e = new(GPUEroder)
 	e.heightmap = heightmap
 	e.setupShaders()
+	e.packData()
 	e.setupTextures()
 	return e
+}
+
+
+func (e *GPUEroder) Bind() {
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.frameBuffer)
+}
+
+func (e *GPUEroder) packData() {
+	var width, height = e.heightmap.Dimensions()
+	heightmap := e.heightmap.Heightmap()
+	packedData := PackedData{
+		heightData:   make([]float32, (width) * (height) * 4),
+		velocityData: make([]float32, (width) * (height) * 4),
+		outflowData:  make([]float32, (width) * (height) * 4),
+	}
+	// Place heightmap data into a packed array (for sending to GPU)
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			index := utils.ToIndex(x, y, width)
+			height := heightmap[index]
+			location := (x + (y * width)) * 4
+			packedData.heightData[location + 0] = height // height val
+			packedData.heightData[location + 1] = 0.0 // water height val
+			packedData.heightData[location + 2] = 0.0 // sediment val
+			packedData.heightData[location + 3] = 1.0 // Not Used
+		}
+	}
+
+	e.simulationState = &packedData
+}
+
+func (e *GPUEroder) setupTextures() {
+	var width, height = e.heightmap.Dimensions()
+	
+	// Gen textures
+	gl.GenTextures(1, &e.outflowColorBuffer)
+	gl.GenTextures(1, &e.velocityColorBuffer)
+	gl.GenTextures(1, &e.heightColorBuffer)
+
+	// Bind textures as colour attachments to the FBO
+	// Create texture for height, waterHeight, sediment
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, e.heightColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindImageTexture(0, e.heightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+	// Create texture for Water Outflow
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, e.outflowColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindImageTexture(0, e.outflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+
+	// Create texture for velocity
+	gl.ActiveTexture(gl.TEXTURE2)
+	gl.BindTexture(gl.TEXTURE_2D, e.velocityColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.velocityData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindImageTexture(0, e.velocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+	// Send the textures to a framebuffer so that we can reference them successfully.
+	gl.GenFramebuffers(1, &e.frameBuffer)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.frameBuffer)
+	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.heightColorBuffer, 0)
+	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, e.heightColorBuffer, 0)
+	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, e.heightColorBuffer, 0)
+
+}
+
+func (e *GPUEroder) Pass() {
+	// Render a plane to the FBO
+	width, height := e.heightmap.Dimensions()
+	gl.UseProgram(e.waterPassProgram)
+	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
 
 func (e *GPUEroder) setupShaders() {
@@ -58,71 +147,4 @@ func (e *GPUEroder) setupShaders() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (e *GPUEroder) Bind() {
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.frameBuffer)
-}
-
-func (e *GPUEroder) setupTextures() {
-	var width, height = e.heightmap.Dimensions()
-	heightmap := e.heightmap.Heightmap()
-
-	// Place heightmap data into our packed array (for sending to GPU)
-	e.heightDataPack = make([]float32, (width) * (height) * 4)
-	for x := 0; x < width; x++ {
-		for y := 0; y < height; y++ {
-			index := utils.ToIndex(x, y, width)
-			height := heightmap[index]
-			location := (x + (y * width)) * 4
-			e.heightDataPack[location + 0] = height
-			e.heightDataPack[location + 1] = height
-			e.heightDataPack[location + 2] = height
-			e.heightDataPack[location + 3] = 1.0
-		}
-	}
-	
-	// Gen textures
-	//gl.GenTextures(1, &e.outflowColorBuffer)
-	//gl.GenTextures(1, &e.velocityColorBuffer)
-	gl.GenTextures(1, &e.heightColorBuffer)
-
-	// Bind textures as colour attachments to the FBO
-	// Create texture for height, waterHeight, sediment
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, e.heightColorBuffer)
-
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.heightDataPack))
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.BindImageTexture(0, e.heightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
-
-
-	gl.GenFramebuffers(1, &e.frameBuffer)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.frameBuffer)
-	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.heightColorBuffer, 0)
-	// Create texture for Water Outflow
-	//gl.ActiveTexture(gl.TEXTURE1)
-	//gl.BindTexture(gl.TEXTURE_2D, e.outflowColorBuffer)
-	//gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	//gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	//gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
-	//gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, e.outflowColorBuffer, 0)
-	//
-	//// Create texture for velocity
-	//gl.ActiveTexture(gl.TEXTURE2)
-	//gl.BindTexture(gl.TEXTURE_2D, e.velocityColorBuffer)
-	//gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	//gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	//gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RG, int32(width), int32(height), 0, gl.RG, gl.UNSIGNED_BYTE, nil)
-	//gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, e.velocityColorBuffer, 0)
-}
-
-func (e *GPUEroder) Pass() {
-	// Render a plane to the FBO
-	width, height := e.heightmap.Dimensions()
-	gl.UseProgram(e.waterPassProgram)
-	gl.DispatchCompute(uint32(width), uint32(height), 1)
-	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
