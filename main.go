@@ -300,8 +300,9 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	//	coreState.Plane.M().Draw()
 	//}
 	width, height := g.GetSize()
-	coreState.GPUEroder.Bind()
+
 	coreState.GPUEroder.Pass()
+	coreState.GPUEroder.BindDisplayFramebuffer()
 	gl.BlitFramebuffer(0,0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 

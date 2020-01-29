@@ -1,19 +1,21 @@
 #version 430 core
 
 layout (local_size_x = 1, local_size_y = 1) in;
-layout (rgba32f, binding = 0) uniform highp image2D heightTex;
-layout (rgba32f, binding = 1) uniform highp image2D outflowTex;
-layout (rgba32f, binding = 2) uniform highp image2D velocityTex;
+layout (rgba32f, binding = 0) uniform highp image2D nextHeightTex;
+layout (rgba32f, binding = 1) uniform highp image2D nextOutflowTex;
+layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
 
+layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
+layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
+layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 // uniform: deltaTime
 
 
 void main() {
     vec4 texel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
-    texel = imageLoad(heightTex, storePos);
+    texel = imageLoad(currentHeightTex, storePos);
 
-    texel.g += texel.a * 0.01; // * deltaTime
 
-    imageStore(heightTex, storePos, texel);
+    imageStore(nextHeightTex, storePos, texel);
 }
