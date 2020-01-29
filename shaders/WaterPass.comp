@@ -8,14 +8,13 @@ layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
 layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
+
 // uniform: deltaTime
 
-
 void main() {
-    vec4 texel;
+    vec4 heightTexel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
-    texel = imageLoad(currentHeightTex, storePos);
+    heightTexel = imageLoad(currentHeightTex, storePos);
 
-
-    imageStore(nextHeightTex, storePos, texel);
+//    imageStore(nextHeightTex, storePos, texel);
 }

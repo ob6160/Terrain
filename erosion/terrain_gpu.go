@@ -115,68 +115,53 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.BindImageTexture(2, e.nextVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-	gl.BindTexture(gl.TEXTURE_2D, 0)
-	
 	// Send the textures to a framebuffer for our bulk copy operation every pass.
 	gl.GenFramebuffers(1, &e.copyFrameBufferHeight)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextHeightColorBuffer, 0)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 
 	gl.GenFramebuffers(1, &e.copyFrameBufferOutflow)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextOutflowColorBuffer, 0)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 
-	gl.GenFramebuffers(1, &e.copyFrameBufferVelocity)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextVelocityColorBuffer, 0)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
+}
+
+func (e *GPUEroder) copyToCurrent() {
+	width, height := e.heightmap.Dimensions()
+	// Copy next to current at the start of each pass.
+	// Expose the modified textures from last pass using a framebuffer for each.
+	// Copy the bound framebuffer to the current texture for each.
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
+	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
+
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
+	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
+	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 1, 0, 0, 0, 0, int32(width), int32(height))
+
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
+	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
+	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 2, 0, 0, 0, 0, int32(width), int32(height))
+
 }
 
 func (e *GPUEroder) Pass() {
 	// Copy "next" textures into "current"
 	width, height := e.heightmap.Dimensions()
 
-
-
-	// Bind our copy framebuffer
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
-	// BindFramebuffer current height color buffer for copying.
-	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
-	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
-
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
-	// BindFramebuffer current outflow color buffer for copying.
-	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
-	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 1, 0, 0, 0, 0, int32(width), int32(height))
-
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
-	//// BindFramebuffer current velocity color buffer for copying.
-	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
-	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 2, 0, 0, 0, 0, int32(width), int32(height))
-
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
-	
-
+	// Transfer the newly computed values from the previous pass into readonly buffers.
+	e.copyToCurrent()
 
 	// Render a plane to the FBO
 	gl.UseProgram(e.waterPassProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-
-	// Copy next to current.
-
-
-
-
-	//gl.UseProgram(e.outflowProgram)
-	//gl.DispatchCompute(uint32(width), uint32(height), 1)
-	//gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
-
-
-
+	gl.UseProgram(e.outflowProgram)
+	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
 
 func (e *GPUEroder) setupShaders() {
