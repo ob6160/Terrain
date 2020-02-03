@@ -16,7 +16,7 @@ func NewTexture(file string) (uint32, error) {
 		return 0, fmt.Errorf("texture %q not found on disk: %v", file, err)
 	}
 	defer imgFile.Close()
-	
+
 	img, _, err := image.Decode(imgFile)
 	if err != nil {
 		return 0, err

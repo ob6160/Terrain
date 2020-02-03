@@ -10,7 +10,7 @@ import (
 func NewProgramFromPath(vertexShaderPath, fragmentShaderPath string) (uint32, error) {
 	vertexShader, _ := utils.ReadTextFile(vertexShaderPath)
 	fragmentShader, _ := utils.ReadTextFile(fragmentShaderPath)
-	return NewProgram(vertexShader + "\x00", fragmentShader + "\x00")
+	return NewProgram(vertexShader+"\x00", fragmentShader+"\x00")
 }
 
 func NewComputeProgramFromPath(computeShaderPath string) (uint32, error) {
@@ -79,7 +79,6 @@ func NewProgram(vertexShaderSource, fragmentShaderSource string) (uint32, error)
 
 	return program, nil
 }
-
 
 func compileShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)

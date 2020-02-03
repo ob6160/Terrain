@@ -1,0 +1,10 @@
+#version 430 core
+
+layout (local_size_x = 1, local_size_y = 1) in;
+layout (rgba8, binding = 0) uniform highp image2D heightTex;
+layout (rgba8, binding = 1) uniform highp image2D outflowTex;
+layout (rgba8, binding = 2) uniform highp image2D velocityTex;
+void main() {
+    ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+    imageStore(heightTex, storePos, vec4(0.0, 1.0, 0.0, 1.0));
+}

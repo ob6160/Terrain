@@ -5,25 +5,25 @@ import (
 	"github.com/ob6160/Terrain/core"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/utils"
-	_"github.com/ob6160/Terrain/utils"
+	_ "github.com/ob6160/Terrain/utils"
 	"math/rand"
 )
 
 type PackedData struct {
-	heightData []float32
+	heightData   []float32
 	velocityData []float32
-	outflowData []float32
+	outflowData  []float32
 }
 
 type GPUEroder struct {
-	heightmap generators.TerrainGenerator
-	simulationState *PackedData
-	copyFrameBufferHeight, copyFrameBufferOutflow, copyFrameBufferVelocity uint32
-	displayFrameBuffer, displayTexture uint32
-	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer uint32
-	nextOutflowColorBuffer uint32 // o1, o2, o3, o4
-	nextVelocityColorBuffer uint32 // vX, vY
-	nextHeightColorBuffer uint32 // landHeight, waterHeight, sediment
+	heightmap                                                                                              generators.TerrainGenerator
+	simulationState                                                                                        *PackedData
+	copyFrameBufferHeight, copyFrameBufferOutflow, copyFrameBufferVelocity                                 uint32
+	displayFrameBuffer, displayTexture                                                                     uint32
+	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer                        uint32
+	nextOutflowColorBuffer                                                                                 uint32 // o1, o2, o3, o4
+	nextVelocityColorBuffer                                                                                uint32 // vX, vY
+	nextHeightColorBuffer                                                                                  uint32 // landHeight, waterHeight, sediment
 	waterPassProgram, outflowProgram, waterHeightProgram, velocityProgram, erosionProgram, sedimentProgram uint32
 }
 
@@ -32,12 +32,11 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	e.heightmap = heightmap
 	width, height := heightmap.Dimensions()
 
-
 	gl.GenTextures(1, &e.displayTexture)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, e.displayTexture)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.TexImage2D(
@@ -51,12 +50,11 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 		gl.UNSIGNED_BYTE,
 		nil)
 
-
 	gl.GenFramebuffers(1, &e.displayFrameBuffer)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBuffer)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTexture, 0)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-	
+
 	e.packData()
 	e.setupShaders()
 	e.setupTextures()
@@ -67,8 +65,16 @@ func (e *GPUEroder) BindDrawFramebuffer() {
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBuffer)
 }
 
-func (e *GPUEroder) BindHeightFramebuffer() {
+func (e *GPUEroder) BindHeightReadFramebuffer() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+}
+
+func (e *GPUEroder) BindOutflowReadFramebuffer() {
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
+}
+
+func (e *GPUEroder) BindVelocityReadFramebuffer() {
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 }
 
 func (e *GPUEroder) DisplayTexture() uint32 {
@@ -83,9 +89,9 @@ func (e *GPUEroder) packData() {
 	var width, height = e.heightmap.Dimensions()
 	heightmap := e.heightmap.Heightmap()
 	packedData := PackedData{
-		heightData:   make([]float32, (width) * (height) * 4),
-		velocityData: make([]float32, (width) * (height) * 4),
-		outflowData:  make([]float32, (width) * (height) * 4),
+		heightData:   make([]float32, (width)*(height)*4),
+		velocityData: make([]float32, (width)*(height)*4),
+		outflowData:  make([]float32, (width)*(height)*4),
 	}
 	// Place heightmap data into a packed array (for sending to GPU)
 	for x := 0; x < width; x++ {
@@ -93,10 +99,10 @@ func (e *GPUEroder) packData() {
 			index := utils.ToIndex(x, y, width)
 			height := heightmap[index]
 			location := (x + (y * width)) * 4
-			packedData.heightData[location + 0] = height // height val
-			packedData.heightData[location + 1] = 0.0 // water height val
-			packedData.heightData[location + 2] = 0.0 // sediment val
-			packedData.heightData[location + 3] = rand.Float32() // rain rate
+			packedData.heightData[location+0] = height         // height val
+			packedData.heightData[location+1] = 0.0            // water height val
+			packedData.heightData[location+2] = 0.0            // sediment val
+			packedData.heightData[location+3] = rand.Float32() // rain rate
 		}
 	}
 
@@ -105,6 +111,10 @@ func (e *GPUEroder) packData() {
 
 func (e *GPUEroder) setupTextures() {
 	var width, height = e.heightmap.Dimensions()
+
+
+	// TODO: Abstract texture creation into its own function
+	// TODO: Split up creation of the two stages of buffers into separate functions
 
 	// Gen current textures
 	gl.GenTextures(1, &e.currentHeightColorBuffer)
@@ -116,7 +126,19 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
+	
+	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
+	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
+	
 	// Gen next textures
 	gl.GenTextures(1, &e.nextHeightColorBuffer)
 	gl.GenTextures(1, &e.nextOutflowColorBuffer)

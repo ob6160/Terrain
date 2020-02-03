@@ -17,12 +17,11 @@ import (
 )
 
 const (
-	windowWidth = 1200
-	windowHeight = 800
+	windowWidth      = 1200
+	windowHeight     = 800
 	vertexShaderPath = "./shaders/main.vert"
-	fragShaderPath = "./shaders/main.frag"
+	fragShaderPath   = "./shaders/main.frag"
 )
-
 
 type State struct {
 	Program            uint32
@@ -36,16 +35,16 @@ type State struct {
 	MousePos           mgl32.Vec4
 	Angle, Height, FOV float32
 	Plane              *core.Plane
-	MidpointGen *generators.MidpointDisplacement
-	TerrainEroder *erosion.CPUEroder
-	GPUEroder *erosion.GPUEroder
-	Spread, Reduce float32
-	ErosionState *erosion.State
+	MidpointGen        *generators.MidpointDisplacement
+	TerrainEroder      *erosion.CPUEroder
+	GPUEroder          *erosion.GPUEroder
+	Spread, Reduce     float32
+	ErosionState       *erosion.State
 	//UI
-	DebugField []byte
-	DebugFieldLen int32
+	DebugField      []byte
+	DebugFieldLen   int32
 	InfoValueString string
-	testTexture uint32
+	testTexture     uint32
 }
 
 func setupUniforms(state *State) {
@@ -67,7 +66,7 @@ func setupUniforms(state *State) {
 	modelUniform := gl.GetUniformLocation(program, gl.Str("model\x00"))
 	gl.UniformMatrix4fv(modelUniform, 1, false, &state.Model[0])
 
-	state.TerrainHitPos = mgl32.Vec3{0,0,0}
+	state.TerrainHitPos = mgl32.Vec3{0, 0, 0}
 	terrainHitPos := gl.GetUniformLocation(program, gl.Str("hitpos\x00"))
 	gl.Uniform3fv(terrainHitPos, 1, &state.TerrainHitPos[0])
 
@@ -76,7 +75,7 @@ func setupUniforms(state *State) {
 
 	angleUniform := gl.GetUniformLocation(program, gl.Str("angle\x00"))
 	gl.Uniform1fv(angleUniform, 1, &state.Angle)
-	
+
 	heightUniform := gl.GetUniformLocation(program, gl.Str("height\x00"))
 	gl.Uniform1fv(heightUniform, 1, &state.Height)
 
@@ -99,32 +98,32 @@ func setupUniforms(state *State) {
 func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
-	
-	var testPlane = core.NewPlane(512,512)
-	var midpointDisp = generators.NewMidPointDisplacement(512,512)
+
+	var testPlane = core.NewPlane(512, 512)
+	var midpointDisp = generators.NewMidPointDisplacement(512, 512)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
 		WaterIncrementRate:     0.012,
-		GravitationalConstant: 9.8,
+		GravitationalConstant:  9.8,
 		PipeCrossSectionalArea: 20,
 		EvaporationRate:        0.15,
 		TimeStep:               0.002,
-		IsRaining: true,
-		SedimentCarryCapacity: 2.0,
-		SoilDepositionRate: 0.05,
-		SoilSuspensionRate: 0.04,
-		MaximalErodeDepth: 0.001,
+		IsRaining:              true,
+		SedimentCarryCapacity:  2.0,
+		SoilDepositionRate:     0.05,
+		SoilSuspensionRate:     0.04,
+		MaximalErodeDepth:      0.001,
 	}
 	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	var gpuEroder = erosion.NewGPUEroder(midpointDisp)
-	
+
 	testTexture, err := core.NewTexture("./demo_1.png")
 	if err != nil {
 		print("error loading image")
 		print(err)
 	}
-	
+
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
 		Program:         0,
@@ -149,9 +148,8 @@ func main() {
 		DebugField:      make([]byte, 1000),
 		DebugFieldLen:   0,
 		InfoValueString: "",
-		testTexture: testTexture,
+		testTexture:     testTexture,
 	}
-
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
 	if err != nil {
@@ -166,9 +164,6 @@ func main() {
 	//state.TerrainEroder.Initialise()
 	//state.Plane.Construct(256, 256)
 
-
-
-	
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
 	closer.Bind(func() {
@@ -188,7 +183,7 @@ func main() {
 				close(exitC)
 				continue
 			}
-			
+
 			glfw.PollEvents()
 			newGUI.Update()
 			//state.TerrainEroder.Update()
@@ -212,8 +207,13 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.NewFrame()
 
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
-	windowFlags := imgui.WindowFlagsMenuBar|imgui.WindowFlagsNoMove
-	if imgui.BeginV("Terrain", &guiState.CameraWindowOpen, windowFlags) {
+	windowFlags := imgui.WindowFlagsMenuBar
+	if imgui.BeginV("GPU Debug View", &guiState.GPUDebugWindowOpen, windowFlags) {
+		imgui.Image(imgui.TextureID(coreState.GPUEroder.DisplayTexture()), imgui.Vec2{512, 512})
+	}
+	imgui.End()
+
+	if imgui.BeginV("Terrain", &guiState.TerrainWindowOpen, windowFlags) {
 		if imgui.TreeNodeV("Camera", treeNodeFlags) {
 			imgui.PushItemWidth(80)
 			{
@@ -262,7 +262,6 @@ func (coreState *State) renderUI(guiState *gui.State) {
 				imgui.TreePop()
 			}
 			if imgui.TreeNodeV("Settings", treeNodeFlags) {
-				imgui.Image(imgui.TextureID(coreState.GPUEroder.DisplayTexture()), imgui.Vec2{512, 512})
 				imgui.PushItemWidth(80)
 				{
 					imgui.SliderFloat("Delta Time", &coreState.ErosionState.TimeStep, 0.001, 0.05)
@@ -272,8 +271,6 @@ func (coreState *State) renderUI(guiState *gui.State) {
 				}
 				imgui.TreePop()
 			}
-
-
 			imgui.TreePop()
 		}
 	}
@@ -316,19 +313,18 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	width, height := g.GetSize()
 	coreState.GPUEroder.Pass()
 	coreState.GPUEroder.BindDrawFramebuffer()
-	coreState.GPUEroder.BindHeightFramebuffer()
-
-	gl.BlitFramebuffer(0,0, int32(width), int32(height),
+	coreState.GPUEroder.BindHeightReadFramebuffer()
+	gl.ColorMask(false, false, false, false)
+	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
-
+	gl.ColorMask(true, true, true, true)
 	// Render UI
 	{
 		g.Render(coreState.renderUI)
 	}
-
 
 	gl.Viewport(0, 0, int32(width), int32(height))
 	g.SwapBuffers()

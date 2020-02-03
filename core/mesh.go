@@ -9,12 +9,12 @@ type Mesh struct {
 	Vertices      []float32
 	Texture       uint32
 	Indices       []uint32
-	stride int32
+	stride        int32
 	vao, vbo, ebo uint32
-	RenderMode uint32
+	RenderMode    uint32
 }
 
-func (m* Mesh) Bind() {
+func (m *Mesh) Bind() {
 	gl.BindVertexArray(m.vao)
 }
 
@@ -31,7 +31,7 @@ func (m *Mesh) Construct() {
 	gl.DeleteVertexArrays(1, &m.vao)
 	gl.DeleteBuffers(1, &m.vbo)
 	gl.DeleteBuffers(1, &m.ebo)
-	
+
 	// Vertex Array Object Setup
 	gl.GenVertexArrays(1, &m.vao)
 
@@ -53,20 +53,19 @@ func (m *Mesh) Construct() {
 
 	// Setup Vertex Attrib Pointers so VBO is read correctly (positions, normals, texcoords)
 	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 9 * 4, gl.PtrOffset(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 9*4, gl.PtrOffset(0))
 
 	// Normal Vector
 	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(1, 3, gl.FLOAT, false, 9 * 4, gl.PtrOffset(3*4))
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, false, 9*4, gl.PtrOffset(3*4))
 
 	// Texture Coords
 	gl.EnableVertexAttribArray(2)
-	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 9 * 4, gl.PtrOffset(6*4))
-
+	gl.VertexAttribPointer(2, 2, gl.FLOAT, false, 9*4, gl.PtrOffset(6*4))
 
 	// Lookup Index
 	gl.EnableVertexAttribArray(3)
-	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 9 * 4, gl.PtrOffset(8 * 4))
+	gl.VertexAttribPointer(3, 1, gl.FLOAT, false, 9*4, gl.PtrOffset(8*4))
 
 	gl.BindVertexArray(0)
 }

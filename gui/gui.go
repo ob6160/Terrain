@@ -13,17 +13,17 @@ import (
 )
 
 type State struct {
-	CameraWindowOpen, SimulationWindowOpen, TerrainWindowOpen bool
-	ButtonsPressed                         [3]bool
-	Time                                   float64
+	CameraWindowOpen, SimulationWindowOpen, TerrainWindowOpen, GPUDebugWindowOpen bool
+	ButtonsPressed                                                                [3]bool
+	Time                                                                          float64
 }
 
 type GUI struct {
-	window *glfw.Window
-	context *imgui.Context
+	window   *glfw.Window
+	context  *imgui.Context
 	renderer *renderers.OpenGL3
-	state *State
-	io imgui.IO
+	state    *State
+	io       imgui.IO
 }
 
 func NewGUI(windowWidth, windowHeight int) (*GUI, error) {
@@ -110,7 +110,7 @@ func (g *GUI) Dispose() {
 	glfw.Terminate()
 }
 
-func (g* GUI) InitialiseGLFW(windowWidth, windowHeight int) *glfw.Window {
+func (g *GUI) InitialiseGLFW(windowWidth, windowHeight int) *glfw.Window {
 	if err := glfw.Init(); err != nil {
 		log.Fatalln("failed to initialize GLFW:", err)
 	}
@@ -153,7 +153,6 @@ func (g *GUI) mouseScrollChange(w *glfw.Window, xoff float64, yoff float64) {
 	g.io.AddMouseWheelDelta(float32(xoff), float32(yoff))
 }
 
-
 var glfwButtonIndexByID = map[glfw.MouseButton]int{
 	glfw.MouseButton1: 0,
 	glfw.MouseButton2: 1,
@@ -165,7 +164,6 @@ var glfwButtonIDByIndex = map[int]glfw.MouseButton{
 	1: glfw.MouseButton2,
 	2: glfw.MouseButton3,
 }
-
 
 func (g *GUI) mouseButtonChange(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mod glfw.ModifierKey) {
 	state := *g.state

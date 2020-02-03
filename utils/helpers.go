@@ -24,9 +24,8 @@ func ReadTextFile(path string) (body string, err error) {
 }
 
 func ToIndex(x, y, width int) int {
-	return x * width + y
+	return x*width + y
 }
-
 
 // TODO: Refactor out.
 type Point struct {
