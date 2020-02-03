@@ -1,16 +1,9 @@
 package renderers
 
-/**
- * New BSD License
- * © 2019, Christian Haas
- * All rights reserved.
- * Based on https://github.com/inkyblackness/imgui-go-examples/blob/master/internal/renderers/OpenGL3.go
- */
-
 import (
 	"fmt"
 	"github.com/go-gl/gl/v4.3-core/gl"
-	"github.com/inkyblackness/imgui-go"
+	"github.com/inkyblackness/imgui-go/v2"
 	"unsafe"
 )
 
@@ -42,7 +35,7 @@ func NewOpenGL3(io imgui.IO) (*OpenGL3, error) {
 
 	renderer := &OpenGL3{
 		imguiIO:     io,
-		glslVersion: "#version 150",
+		glslVersion: "#version 430",
 	}
 	renderer.createDeviceObjects()
 	return renderer, nil

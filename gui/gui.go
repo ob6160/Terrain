@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
-	"github.com/inkyblackness/imgui-go"
+	"github.com/inkyblackness/imgui-go/v2"
 	"github.com/ob6160/Terrain/gui/renderers"
 	"log"
 	"math"

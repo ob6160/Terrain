@@ -19,10 +19,8 @@ type GPUEroder struct {
 	heightmap generators.TerrainGenerator
 	simulationState *PackedData
 	copyFrameBufferHeight, copyFrameBufferOutflow, copyFrameBufferVelocity uint32
-	displayFrameBuffer uint32
-	currentOutflowColorBuffer uint32 // o1, o2, o3, o4
-	currentVelocityColorBuffer uint32 // vX, vY
-	currentHeightColorBuffer uint32 // landHeight, waterHeight, sediment
+	displayFrameBuffer, displayTexture uint32
+	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer uint32
 	nextOutflowColorBuffer uint32 // o1, o2, o3, o4
 	nextVelocityColorBuffer uint32 // vX, vY
 	nextHeightColorBuffer uint32 // landHeight, waterHeight, sediment
@@ -32,15 +30,53 @@ type GPUEroder struct {
 func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	var e = new(GPUEroder)
 	e.heightmap = heightmap
+	width, height := heightmap.Dimensions()
+
+
+	gl.GenTextures(1, &e.displayTexture)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, e.displayTexture)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		int32(width),
+		int32(height),
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		nil)
+
+
+	gl.GenFramebuffers(1, &e.displayFrameBuffer)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBuffer)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTexture, 0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	
 	e.packData()
 	e.setupShaders()
 	e.setupTextures()
 	return e
 }
 
+func (e *GPUEroder) BindDrawFramebuffer() {
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBuffer)
+}
 
-func (e *GPUEroder) BindDisplayFramebuffer() {
+func (e *GPUEroder) BindHeightFramebuffer() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+}
+
+func (e *GPUEroder) DisplayTexture() uint32 {
+	return e.displayTexture
+}
+
+func (e *GPUEroder) HeightColorbuffer() uint32 {
+	return e.nextHeightColorBuffer
 }
 
 func (e *GPUEroder) packData() {
@@ -91,14 +127,16 @@ func (e *GPUEroder) setupTextures() {
 	// Create texture for height, waterHeight, sediment
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, e.nextHeightColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
 	gl.BindImageTexture(0, e.nextHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	// Create texture for Water Outflow
-	gl.ActiveTexture(gl.TEXTURE1)
 	gl.BindTexture(gl.TEXTURE_2D, e.nextOutflowColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
@@ -107,7 +145,6 @@ func (e *GPUEroder) setupTextures() {
 	gl.BindImageTexture(1, e.nextOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	// Create texture for velocity
-	gl.ActiveTexture(gl.TEXTURE2)
 	gl.BindTexture(gl.TEXTURE_2D, e.nextVelocityColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
@@ -124,6 +161,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextOutflowColorBuffer, 0)
 
+	gl.GenFramebuffers(1, &e.copyFrameBufferVelocity)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextVelocityColorBuffer, 0)
 }

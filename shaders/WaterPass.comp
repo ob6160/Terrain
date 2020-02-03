@@ -1,6 +1,7 @@
 #version 430 core
 
 layout (local_size_x = 1, local_size_y = 1) in;
+// r -> terrainHeight, g -> waterHeight, b -> sediment
 layout (rgba32f, binding = 0) uniform highp image2D nextHeightTex;
 layout (rgba32f, binding = 1) uniform highp image2D nextOutflowTex;
 layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
@@ -9,12 +10,18 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-// uniform: deltaTime
+const float deltaTime = 0.02;
+const float waterIncrementRate = 0.0012;
 
 void main() {
     vec4 heightTexel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     heightTexel = imageLoad(currentHeightTex, storePos);
 
-//    imageStore(nextHeightTex, storePos, texel);
+    float rainRate = heightTexel.a;
+
+    // Update water height based on constant rain values for each terrain coord
+    heightTexel.g += rainRate * deltaTime * waterIncrementRate;
+
+    imageStore(nextHeightTex, storePos, heightTexel);
 }

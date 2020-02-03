@@ -5,6 +5,8 @@ import (
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"image"
 	"image/draw"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 )
 
@@ -13,6 +15,8 @@ func NewTexture(file string) (uint32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("texture %q not found on disk: %v", file, err)
 	}
+	defer imgFile.Close()
+	
 	img, _, err := image.Decode(imgFile)
 	if err != nil {
 		return 0, err
