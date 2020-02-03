@@ -10,7 +10,7 @@ jobs:
     - name: Set up Go 1.13
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.13.7
       id: go
 
     - name: Check out code into the Go module directory
@@ -23,6 +23,7 @@ jobs:
             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
             dep ensure
         fi
+        sudo apt-get update -y
         sudo apt-get install ninja-build -y
         sudo apt-get install xorg-dev
         sudo apt-get install freeglut3-dev
