@@ -10,6 +10,7 @@ import (
 	"github.com/ob6160/Terrain/erosion"
 	"github.com/ob6160/Terrain/generators"
 	"github.com/ob6160/Terrain/gui"
+	"github.com/ob6160/Terrain/utils"
 	_ "github.com/ob6160/Terrain/utils"
 	"github.com/xlab/closer"
 	"math"
@@ -203,13 +204,21 @@ func updateUniforms(state *State) {
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
 }
 
+
+
 func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.NewFrame()
 
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
 	windowFlags := imgui.WindowFlagsMenuBar
 	if imgui.BeginV("GPU Debug View", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(imgui.TextureID(coreState.GPUEroder.DisplayTexture()), imgui.Vec2{512, 512})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.RED), imgui.Vec2{256, 256})
+		imgui.SameLine()
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		imgui.SameLine()
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
 	}
 	imgui.End()
 

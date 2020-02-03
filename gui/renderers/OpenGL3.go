@@ -167,8 +167,8 @@ func (renderer *OpenGL3) Render(displaySize [2]float32, framebufferSize [2]float
 				textureID := cmd.TextureID()
 				imageType := ImageTypeFromID(textureID)
 				gl.Uniform1i(renderer.attribLocationType, 0)
-				if imageType == 1 {
-					gl.Uniform1i(renderer.attribLocationType, 1)
+				if imageType >= 1 {
+					gl.Uniform1i(renderer.attribLocationType, int32(imageType))
 				}
 
 				gl.BindTexture(gl.TEXTURE_2D, uint32(cmd.TextureID()))
@@ -249,12 +249,35 @@ uniform sampler2D Texture;
 in vec2 Frag_UV;
 in vec4 Frag_Color;
 out vec4 Out_Color;
+
+const int RED = 1;
+const int GREEN = 2;
+const int BLUE = 4;
+const int ALPHA = 8;
+
 void main()
 {
-	if (ImageType == 1)
+	vec4 pixel = texture(Texture, Frag_UV.st);
+	vec4 imageMask = vec4(0.0);
+	if((ImageType & RED) >= 1) {
+		imageMask = vec4(pixel.r);
+	}
+	
+	if((ImageType & GREEN) >= 1) {
+		imageMask = vec4(pixel.g);
+	}
+
+	if((ImageType & BLUE) >= 1) {
+		imageMask = vec4(pixel.b);
+	}
+
+	if((ImageType & ALPHA) >= 1) {
+		imageMask = vec4(pixel.a);
+	}
+
+	if (ImageType >= 1)
 	{
-		vec4 pixel = texture(Texture, Frag_UV.st);
-		Out_Color = Frag_Color * pixel;
+		Out_Color = Frag_Color * imageMask;
 	}
 	else
 	{

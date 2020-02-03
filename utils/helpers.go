@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"github.com/inkyblackness/imgui-go/v2"
 	"log"
 	"math/rand"
 	"os"
@@ -60,4 +61,15 @@ func Jitter(value, scale float32) float32 {
 	random := rand.Float32() * scale * 2
 	shift := scale - random
 	return shift + value
+}
+
+const (
+	RED byte = 1
+	GREEN byte = 2
+	BLUE byte = 4
+	ALPHA byte = 8
+)
+
+func FullColourTextureId(handle uint32, channels byte) imgui.TextureID {
+	return imgui.TextureID(channels)<<56 | imgui.TextureID(handle)
 }
