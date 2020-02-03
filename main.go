@@ -212,13 +212,24 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
 	windowFlags := imgui.WindowFlagsMenuBar
 	if imgui.BeginV("GPU Debug View", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.RED), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED), imgui.Vec2{256, 256})
 		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
 
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
 		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.DisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
+	}
+	imgui.End()
+
+	if imgui.BeginV("GPU Debug View Outflow", &guiState.GPUDebugWindowOpen, windowFlags) {
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED), imgui.Vec2{256, 256})
+		imgui.SameLine()
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		imgui.SameLine()
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
 	}
 	imgui.End()
 
@@ -322,8 +333,16 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	width, height := g.GetSize()
 	coreState.GPUEroder.Pass()
 
-	coreState.GPUEroder.BindDrawFramebuffer()
+	coreState.GPUEroder.BindHeightDrawFramebuffer()
 	coreState.GPUEroder.BindHeightReadFramebuffer()
+	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
+		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
+
+	coreState.GPUEroder.BindOutflowDrawFramebuffer()
+	coreState.GPUEroder.BindOutflowReadFramebuffer()
 	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)

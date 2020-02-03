@@ -11,14 +11,78 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 // uniform: deltaTime
 
+const float deltaTime = 0.05;
+const float pipeCrossSectionalArea = 20.0;
+const float gravitationalConstant = 9.81;
+
 void main() {
-    vec4 heightTexel, outflowTexel;
+    vec4 currentHeightTexel, currentOutflowTexel;
+    vec4 nextHeightTexel;
+    /////----------------------------------
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
-    heightTexel = imageLoad(nextHeightTex, storePos);
-    outflowTexel = imageLoad(nextOutflowTex, storePos);
+    nextHeightTexel = imageLoad(nextHeightTex, storePos);
+    currentHeightTexel = imageLoad(currentHeightTex, storePos);
+    currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
+    /////----------------------------------
+    float currentTerrainHeight = currentHeightTexel.r;
+    float nextWaterHeight = nextHeightTexel.g;
+    float totalHeight = currentTerrainHeight + nextWaterHeight;
+    float pressure = deltaTime * pipeCrossSectionalArea * gravitationalConstant;
+    /////----------------------------------
+    ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
+    vec4 leftCurrentHeightTexel = imageLoad(currentHeightTex, leftStorePos);
+    vec4 leftNextHeightTexel = imageLoad(nextHeightTex, leftStorePos);
 
+    float leftCurrentTerrainHeight = leftCurrentHeightTexel.r;
+    float leftNextWaterHeight = leftNextHeightTexel.g;
+    float leftTotalHeight = leftCurrentTerrainHeight + leftNextWaterHeight;
 
+    float leftHeightDiff = totalHeight - leftTotalHeight;
+    float leftOutflow = currentOutflowTexel.r + pressure * leftHeightDiff;
+    /////----------------------------------
+    ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
+    vec4 rightCurrentHeightTexel = imageLoad(currentHeightTex, rightStorePos);
+    vec4 rightNextHeightTexel = imageLoad(nextHeightTex, rightStorePos);
 
+    float rightCurrentTerrainHeight = rightCurrentHeightTexel.r;
+    float rightNextWaterHeight = rightNextHeightTexel.g;
+    float rightTotalHeight = rightCurrentTerrainHeight + rightNextWaterHeight;
 
-    imageStore(nextHeightTex, storePos, heightTexel);
+    float rightHeightDiff = totalHeight - rightTotalHeight;
+    float rightOutflow = currentOutflowTexel.g + pressure * rightHeightDiff;
+    /////----------------------------------
+    ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
+    vec4 topCurrentHeightTexel = imageLoad(currentHeightTex, topStorePos);
+    vec4 topNextHeightTexel = imageLoad(nextHeightTex, topStorePos);
+
+    float topCurrentTerrainHeight = topCurrentHeightTexel.r;
+    float topNextWaterHeight = topNextHeightTexel.g;
+    float topTotalHeight = topCurrentTerrainHeight + topNextWaterHeight;
+
+    float topHeightDiff = totalHeight - topTotalHeight;
+    float topOutflow = currentOutflowTexel.b + pressure * topHeightDiff;
+    /////----------------------------------
+    ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
+    vec4 bottomCurrentHeightTexel = imageLoad(currentHeightTex, bottomStorePos);
+    vec4 bottomNextHeightTexel = imageLoad(nextHeightTex, bottomStorePos);
+
+    float bottomCurrentTerrainHeight = bottomCurrentHeightTexel.r;
+    float bottomNextWaterHeight = bottomNextHeightTexel.g;
+    float bottomTotalHeight = bottomCurrentTerrainHeight + bottomNextWaterHeight;
+
+    float bottomHeightDiff = totalHeight - bottomTotalHeight;
+    float bottomOutflow = currentOutflowTexel.a + pressure * bottomHeightDiff;
+    /////----------------------------------
+    float flux = leftOutflow + rightOutflow + topOutflow + bottomOutflow;
+    float scale = min(1.0, nextWaterHeight / flux * deltaTime);
+
+    vec4 nextOutflowTexel = vec4(
+        max(0.0, leftOutflow * scale),
+        max(0.0, rightOutflow * scale),
+        max(0.0, topOutflow * scale),
+        max(0.0, bottomOutflow * scale)
+    );
+
+    imageStore(nextOutflowTex, storePos, nextOutflowTexel);
+    imageStore(nextHeightTex, storePos, nextHeightTexel);
 }

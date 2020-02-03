@@ -170,6 +170,7 @@ func (t *CPUEroder) SimulationStep() {
 
 			var leftIndex = utils.ToIndex(x-1, y, t.width)
 			var leftOutflow = 0.0
+			//TODO: Use the next water height as we've just incremented it with rain?
 			if WithinBounds(leftIndex, dimensions) {
 				var leftHeight = initial.heightmap[leftIndex]
 				leftHeightDiff := currentHeight - (leftHeight + initial.waterHeight[leftIndex])

@@ -19,7 +19,8 @@ type GPUEroder struct {
 	heightmap                                                                                              generators.TerrainGenerator
 	simulationState                                                                                        *PackedData
 	copyFrameBufferHeight, copyFrameBufferOutflow, copyFrameBufferVelocity                                 uint32
-	displayFrameBuffer, displayTexture                                                                     uint32
+	displayFrameBufferHeight, displayTextureHeight                                                         uint32
+	displayFrameBufferOutflow, displayTextureOutflow                                                       uint32
 	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer                        uint32
 	nextOutflowColorBuffer                                                                                 uint32 // o1, o2, o3, o4
 	nextVelocityColorBuffer                                                                                uint32 // vX, vY
@@ -32,9 +33,10 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	e.heightmap = heightmap
 	width, height := heightmap.Dimensions()
 
-	gl.GenTextures(1, &e.displayTexture)
+	// Setup the framebuffer and texture for height display.
+	gl.GenTextures(1, &e.displayTextureHeight)
 	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, e.displayTexture)
+	gl.BindTexture(gl.TEXTURE_2D, e.displayTextureHeight)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -50,9 +52,33 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 		gl.UNSIGNED_BYTE,
 		nil)
 
-	gl.GenFramebuffers(1, &e.displayFrameBuffer)
-	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBuffer)
-	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTexture, 0)
+	gl.GenFramebuffers(1, &e.displayFrameBufferHeight)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBufferHeight)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTextureHeight, 0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+
+	// Setup the framebuffer and texture for outflow display.
+	gl.GenTextures(1, &e.displayTextureOutflow)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, e.displayTextureOutflow)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		int32(width),
+		int32(height),
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		nil)
+
+	gl.GenFramebuffers(1, &e.displayFrameBufferOutflow)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBufferOutflow)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTextureOutflow, 0)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
 	e.packData()
@@ -61,8 +87,12 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	return e
 }
 
-func (e *GPUEroder) BindDrawFramebuffer() {
-	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBuffer)
+func (e *GPUEroder) BindOutflowDrawFramebuffer() {
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBufferOutflow)
+}
+
+func (e *GPUEroder) BindHeightDrawFramebuffer() {
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBufferHeight)
 }
 
 func (e *GPUEroder) BindHeightReadFramebuffer() {
@@ -77,8 +107,12 @@ func (e *GPUEroder) BindVelocityReadFramebuffer() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 }
 
-func (e *GPUEroder) DisplayTexture() uint32 {
-	return e.displayTexture
+func (e *GPUEroder) HeightDisplayTexture() uint32 {
+	return e.displayTextureHeight
+}
+
+func (e *GPUEroder) OutflowDisplayTexture() uint32 {
+	return e.displayTextureOutflow
 }
 
 func (e *GPUEroder) HeightColorbuffer() uint32 {
