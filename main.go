@@ -312,15 +312,14 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	//}
 	width, height := g.GetSize()
 	coreState.GPUEroder.Pass()
+
 	coreState.GPUEroder.BindDrawFramebuffer()
 	coreState.GPUEroder.BindHeightReadFramebuffer()
-	gl.ColorMask(false, false, false, false)
 	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
-	gl.ColorMask(true, true, true, true)
 	// Render UI
 	{
 		g.Render(coreState.renderUI)

@@ -6,7 +6,6 @@ import (
 	"github.com/inkyblackness/imgui-go/v2"
 	"unsafe"
 )
-
 // OpenGL3 implements a renderer based on github.com/go-gl/gl (v3.2-core).
 type OpenGL3 struct {
 	imguiIO imgui.IO
@@ -21,6 +20,7 @@ type OpenGL3 struct {
 	attribLocationPosition int32
 	attribLocationUV       int32
 	attribLocationColor    int32
+	attribLocationType     int32
 	vboHandle              uint32
 	elementsHandle         uint32
 }
@@ -164,6 +164,13 @@ func (renderer *OpenGL3) Render(displaySize [2]float32, framebufferSize [2]float
 			if cmd.HasUserCallback() {
 				cmd.CallUserCallback(list)
 			} else {
+				textureID := cmd.TextureID()
+				imageType := ImageTypeFromID(textureID)
+				gl.Uniform1i(renderer.attribLocationType, 0)
+				if imageType == 1 {
+					gl.Uniform1i(renderer.attribLocationType, 1)
+				}
+
 				gl.BindTexture(gl.TEXTURE_2D, uint32(cmd.TextureID()))
 				clipRect := cmd.ClipRect()
 				gl.Scissor(int32(clipRect.X), int32(fbHeight)-int32(clipRect.W), int32(clipRect.Z-clipRect.X), int32(clipRect.W-clipRect.Y))
@@ -209,6 +216,10 @@ func (renderer *OpenGL3) Render(displaySize [2]float32, framebufferSize [2]float
 	gl.Scissor(lastScissorBox[0], lastScissorBox[1], lastScissorBox[2], lastScissorBox[3])
 }
 
+func ImageTypeFromID(id imgui.TextureID) int {
+	return int(id >> 56)
+}
+
 func (renderer *OpenGL3) createDeviceObjects() {
 	// Backup GL state
 	var lastTexture int32
@@ -233,13 +244,22 @@ void main()
 }
 `
 	fragmentShader := renderer.glslVersion + `
+uniform int ImageType;
 uniform sampler2D Texture;
 in vec2 Frag_UV;
 in vec4 Frag_Color;
 out vec4 Out_Color;
 void main()
 {
-	Out_Color = vec4(Frag_Color.rgb, Frag_Color.a * texture( Texture, Frag_UV.st).r);
+	if (ImageType == 1)
+	{
+		vec4 pixel = texture(Texture, Frag_UV.st);
+		Out_Color = Frag_Color * pixel;
+	}
+	else
+	{
+		Out_Color = vec4(Frag_Color.rgb, Frag_Color.a * texture( Texture, Frag_UV.st).r);
+	}
 }
 `
 	renderer.shaderHandle = gl.CreateProgram()
@@ -261,6 +281,7 @@ void main()
 	gl.AttachShader(renderer.shaderHandle, renderer.fragHandle)
 	gl.LinkProgram(renderer.shaderHandle)
 
+	renderer.attribLocationType = gl.GetUniformLocation(renderer.shaderHandle, gl.Str("ImageType"+"\x00"))
 	renderer.attribLocationTex = gl.GetUniformLocation(renderer.shaderHandle, gl.Str("Texture"+"\x00"))
 	renderer.attribLocationProjMtx = gl.GetUniformLocation(renderer.shaderHandle, gl.Str("ProjMtx"+"\x00"))
 	renderer.attribLocationPosition = gl.GetAttribLocation(renderer.shaderHandle, gl.Str("Position"+"\x00"))
