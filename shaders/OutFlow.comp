@@ -16,6 +16,10 @@ const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
 void main() {
+    // TODO: Check bounds and set outflow to zero?
+    // TODO: Double check variables
+    // TODO: Ensure that min/max checks are carried out where appropriate
+    // TODO: Abstract texel lookups into dedicated method.
     vec4 currentHeightTexel, currentOutflowTexel;
     vec4 nextHeightTexel;
     /////----------------------------------
