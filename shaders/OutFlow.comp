@@ -11,7 +11,7 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 // uniform: deltaTime
 
-const float deltaTime = 0.05;
+const float deltaTime = 0.01;
 const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
@@ -21,19 +21,27 @@ void main() {
     // TODO: 3. Double check variables
     // TODO: 4. Ensure that min/max checks are carried out where appropriate
     // TODO: 5. Abstract texel lookups into dedicated method.
+
+    /////----------------------------------
+
     vec4 currentHeightTexel, currentOutflowTexel;
     vec4 nextHeightTexel;
+
     /////----------------------------------
+
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     nextHeightTexel = imageLoad(nextHeightTex, storePos);
     currentHeightTexel = imageLoad(currentHeightTex, storePos);
     currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
+
     /////----------------------------------
+
     float currentTerrainHeight = currentHeightTexel.r;
     float nextWaterHeight = nextHeightTexel.g;
     float totalHeight = currentTerrainHeight + nextWaterHeight;
     float pressure = deltaTime * pipeCrossSectionalArea * gravitationalConstant;
-    /////----------------------------------
+
+    /////------------LEFT OUTFLOW---------////////
     ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
     vec4 leftCurrentHeightTexel = imageLoad(currentHeightTex, leftStorePos);
     vec4 leftNextHeightTexel = imageLoad(nextHeightTex, leftStorePos);
@@ -47,7 +55,8 @@ void main() {
 
     float leftHeightDiff = totalHeight - leftTotalHeight;
     float leftOutflow = currentOutflowTexel.r + pressure * leftHeightDiff;
-    /////----------------------------------
+
+    /////------------RIGHT OUTFLOW---------////////
     ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
     vec4 rightCurrentHeightTexel = imageLoad(currentHeightTex, rightStorePos);
     vec4 rightNextHeightTexel = imageLoad(nextHeightTex, rightStorePos);
@@ -58,7 +67,8 @@ void main() {
 
     float rightHeightDiff = totalHeight - rightTotalHeight;
     float rightOutflow = currentOutflowTexel.g + pressure * rightHeightDiff;
-    /////----------------------------------
+
+    /////------------TOP OUTFLOW---------////////
     ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
     vec4 topCurrentHeightTexel = imageLoad(currentHeightTex, topStorePos);
     vec4 topNextHeightTexel = imageLoad(nextHeightTex, topStorePos);
@@ -69,7 +79,8 @@ void main() {
 
     float topHeightDiff = totalHeight - topTotalHeight;
     float topOutflow = currentOutflowTexel.b + pressure * topHeightDiff;
-    /////----------------------------------
+
+    /////------------BOTTOM OUTFLOW---------////////
     ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
     vec4 bottomCurrentHeightTexel = imageLoad(currentHeightTex, bottomStorePos);
     vec4 bottomNextHeightTexel = imageLoad(nextHeightTex, bottomStorePos);
@@ -80,9 +91,27 @@ void main() {
 
     float bottomHeightDiff = totalHeight - bottomTotalHeight;
     float bottomOutflow = currentOutflowTexel.a + pressure * bottomHeightDiff;
-    /////----------------------------------
+
+
+    /////------------TOTAL OUTFLOW---------////////
     float flux = leftOutflow + rightOutflow + topOutflow + bottomOutflow;
     float scale = min(1.0, nextWaterHeight / flux * deltaTime);
+
+    if(storePos.x == 0) {
+        leftOutflow = 0.0;
+    }
+
+    if(storePos.y == 0) {
+        topOutflow = 0.0;
+    }
+
+    if(storePos.x == 511) {
+        rightOutflow = 0.0;
+    }
+
+    if(storePos.y == 511) {
+        bottomOutflow = 0.0;
+    }
 
     /**
      * Cell outflow vector direction mapping

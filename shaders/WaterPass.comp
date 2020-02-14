@@ -10,13 +10,14 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.05;
+const float deltaTime = 0.01;
 const float waterIncrementRate = 0.012;
 
 void main() {
-    vec4 heightTexel;
+    vec4 heightTexel, outflowTexel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     heightTexel = imageLoad(currentHeightTex, storePos);
+    outflowTexel = imageLoad(currentOutflowTex, storePos);
 
     float rainRate = heightTexel.a;
 
@@ -24,4 +25,5 @@ void main() {
     heightTexel.g += rainRate * deltaTime * waterIncrementRate;
 
     imageStore(nextHeightTex, storePos, heightTexel);
+    imageStore(nextOutflowTex, storePos, outflowTexel);
 }

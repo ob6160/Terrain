@@ -1,6 +1,7 @@
 #version 430 core
 
 layout (local_size_x = 1, local_size_y = 1) in;
+// r -> terrainHeight, g -> waterHeight, b -> sediment, a -> constant rain rate.
 layout (rgba32f, binding = 0) uniform highp image2D nextHeightTex;
 layout (rgba32f, binding = 1) uniform highp image2D nextOutflowTex;
 layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
@@ -9,26 +10,73 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
+const float deltaTime = 0.01;
+
 void main() {
+    // TODO: 1. Bounds check
+    /////----------------------------------
+    vec4 currentHeightTexel, currentOutflowTexel;
+    vec4 nextHeightTexel, nextOutflowTexel;
+    /////----------------------------------
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+    // Next Data
+    nextHeightTexel = imageLoad(nextHeightTex, storePos);
+    nextOutflowTexel = imageLoad(nextOutflowTex, storePos);
+    // Current Data
+    currentHeightTexel = imageLoad(currentHeightTex, storePos);
+    currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
+    /////----------------------------------
 
-//    var leftIndex = utils.ToIndex(x-1, y, t.width)
-//    var leftCellInflow float32 = 0
-//    if WithinBounds(leftIndex, dimensions) {
-//        _, leftCellInflow, _, _ = swap.outflowFlux[leftIndex].Elem()
-//    }
-
+    /////------------LEFT INFLOW---------////////
     ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
-    vec4 leftCurrentHeightTexel = imageLoad(currentHeightTex, leftStorePos);
-    vec4 leftCurrentOuflow = imageLoad(currentOutflowTex, leftStorePos);
-    float leftCellInflow = leftCurrentHeightTexel.g;
+    vec4 leftCurrentOuflow = imageLoad(nextOutflowTex, leftStorePos);
 
+    // AKA Left Inflow
+    float leftCellRightOutflow = leftCurrentOuflow.g;
 
+    /////------------RIGHT INFLOW---------////////
     ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
+    vec4 rightCurrentOuflow = imageLoad(nextOutflowTex, rightStorePos);
 
+    // AKA Right Inflow
+    float rightCellLeftOutflow = rightCurrentOuflow.r;
+
+    /////------------TOP INFLOW---------////////
     ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
+    vec4 topCurrentOuflow = imageLoad(nextOutflowTex, topStorePos);
 
+    // AKA Top Inflow
+    float topCellBottomOutflow = topCurrentOuflow.a;
+
+    /////------------BOTTOM INFLOW---------////////
     ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
+    vec4 bottomCurrentOuflow = imageLoad(nextOutflowTex, bottomStorePos);
 
-    imageStore(heightTex, storePos, vec4(0.0, 1.0, 0.0, 1.0));
+    // AKA Bottom Inflow
+    float bottomCellTopOutflow = bottomCurrentOuflow.b;
+
+    /////------------TOTAL OUTFLOW---------////////
+    float totalOutflow =
+        currentOutflowTexel.r
+        + currentOutflowTexel.g
+        + currentOutflowTexel.b
+        + currentOutflowTexel.a;
+
+    /////------------TOTAL INFLOW---------////////
+    float totalInflow =
+        leftCellRightOutflow
+        + rightCellLeftOutflow
+        + topCellBottomOutflow
+        + bottomCellTopOutflow;
+
+    /////------------WATER-H DELTA---------////////
+    float waterDeltaHeight = deltaTime * (totalInflow - totalOutflow);
+    nextHeightTexel.g += waterDeltaHeight;
+
+    nextHeightTexel.g *= 1.0 - 0.001 * deltaTime;
+
+    nextHeightTexel.g = max(0.0, nextHeightTexel.g);
+
+    imageStore(nextHeightTex, storePos, nextHeightTexel);
+    imageStore(nextOutflowTex, storePos, nextOutflowTexel);
 }

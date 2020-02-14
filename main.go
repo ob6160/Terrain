@@ -221,6 +221,11 @@ func (coreState *State) renderUI(guiState *gui.State) {
 		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
 	}
 	imgui.End()
+	
+	if imgui.BeginV("Water Height View", &guiState.GPUDebugWindowOpen, windowFlags) {
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.GREEN), imgui.Vec2{1024, 1024})
+	}
+	imgui.End();
 
 	if imgui.BeginV("GPU Debug View Outflow", &guiState.GPUDebugWindowOpen, windowFlags) {
 		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED), imgui.Vec2{256, 256})
