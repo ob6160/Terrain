@@ -16,10 +16,11 @@ const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
 void main() {
-    // TODO: Check bounds and set outflow to zero?
-    // TODO: Double check variables
-    // TODO: Ensure that min/max checks are carried out where appropriate
-    // TODO: Abstract texel lookups into dedicated method.
+    // TODO: 1. Bounds check
+    // TODO: 2. Set outflow to zero if at bounds
+    // TODO: 3. Double check variables
+    // TODO: 4. Ensure that min/max checks are carried out where appropriate
+    // TODO: 5. Abstract texel lookups into dedicated method.
     vec4 currentHeightTexel, currentOutflowTexel;
     vec4 nextHeightTexel;
     /////----------------------------------
@@ -38,6 +39,9 @@ void main() {
     vec4 leftNextHeightTexel = imageLoad(nextHeightTex, leftStorePos);
 
     float leftCurrentTerrainHeight = leftCurrentHeightTexel.r;
+    // We use the "next" water height because this has just been updated in the previous
+    // step of the pipeline, which increments the water height.
+    // TODO: Look at using "current", does this make a difference?
     float leftNextWaterHeight = leftNextHeightTexel.g;
     float leftTotalHeight = leftCurrentTerrainHeight + leftNextWaterHeight;
 
@@ -80,6 +84,13 @@ void main() {
     float flux = leftOutflow + rightOutflow + topOutflow + bottomOutflow;
     float scale = min(1.0, nextWaterHeight / flux * deltaTime);
 
+    /**
+     * Cell outflow vector direction mapping
+     * r -> left
+     * g -> right
+     * b -> top
+     * a -> bottom
+     */
     vec4 nextOutflowTexel = vec4(
         max(0.0, leftOutflow * scale),
         max(0.0, rightOutflow * scale),
