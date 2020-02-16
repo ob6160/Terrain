@@ -11,7 +11,7 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 // uniform: deltaTime
 
-const float deltaTime = 0.01;
+const float deltaTime = 0.05;
 const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
@@ -54,7 +54,7 @@ void main() {
     float leftTotalHeight = leftCurrentTerrainHeight + leftNextWaterHeight;
 
     float leftHeightDiff = totalHeight - leftTotalHeight;
-    float leftOutflow = currentOutflowTexel.r + pressure * leftHeightDiff;
+    float leftOutflow = max(0.0, currentOutflowTexel.r + pressure * leftHeightDiff);
 
     /////------------RIGHT OUTFLOW---------////////
     ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
@@ -66,7 +66,7 @@ void main() {
     float rightTotalHeight = rightCurrentTerrainHeight + rightNextWaterHeight;
 
     float rightHeightDiff = totalHeight - rightTotalHeight;
-    float rightOutflow = currentOutflowTexel.g + pressure * rightHeightDiff;
+    float rightOutflow = max(0.0, currentOutflowTexel.g + pressure * rightHeightDiff);
 
     /////------------TOP OUTFLOW---------////////
     ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
@@ -78,7 +78,7 @@ void main() {
     float topTotalHeight = topCurrentTerrainHeight + topNextWaterHeight;
 
     float topHeightDiff = totalHeight - topTotalHeight;
-    float topOutflow = currentOutflowTexel.b + pressure * topHeightDiff;
+    float topOutflow = max(0.0, currentOutflowTexel.b + pressure * topHeightDiff);
 
     /////------------BOTTOM OUTFLOW---------////////
     ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
@@ -90,19 +90,23 @@ void main() {
     float bottomTotalHeight = bottomCurrentTerrainHeight + bottomNextWaterHeight;
 
     float bottomHeightDiff = totalHeight - bottomTotalHeight;
-    float bottomOutflow = currentOutflowTexel.a + pressure * bottomHeightDiff;
+    float bottomOutflow = max(0.0, currentOutflowTexel.a + pressure * bottomHeightDiff);
 
 
     /////------------TOTAL OUTFLOW---------////////
     float flux = leftOutflow + rightOutflow + topOutflow + bottomOutflow;
-    float scale = min(1.0, nextWaterHeight / flux * deltaTime);
+    float scale = nextWaterHeight / (flux * deltaTime);
+    leftOutflow *= min(1.0, scale);
+    rightOutflow *= min(1.0, scale);
+    topOutflow *= min(1.0, scale);
+    bottomOutflow *= min(1.0, scale);
 
     if(storePos.x == 0) {
         leftOutflow = 0.0;
     }
 
     if(storePos.y == 0) {
-        topOutflow = 0.0;
+        bottomOutflow = 0.0;
     }
 
     if(storePos.x == 511) {
@@ -110,7 +114,7 @@ void main() {
     }
 
     if(storePos.y == 511) {
-        bottomOutflow = 0.0;
+        topOutflow = 0.0;
     }
 
     /**
@@ -121,10 +125,10 @@ void main() {
      * a -> bottom
      */
     vec4 nextOutflowTexel = vec4(
-        max(0.0, leftOutflow * scale),
-        max(0.0, rightOutflow * scale),
-        max(0.0, topOutflow * scale),
-        max(0.0, bottomOutflow * scale)
+        max(0.0, leftOutflow),
+        max(0.0, rightOutflow),
+        max(0.0, topOutflow),
+        max(0.0, bottomOutflow)
     );
 
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);

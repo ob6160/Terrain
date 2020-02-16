@@ -10,7 +10,7 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.01;
+const float deltaTime = 0.05;
 
 void main() {
     // TODO: 1. Bounds check
@@ -57,10 +57,10 @@ void main() {
 
     /////------------TOTAL OUTFLOW---------////////
     float totalOutflow =
-        currentOutflowTexel.r
-        + currentOutflowTexel.g
-        + currentOutflowTexel.b
-        + currentOutflowTexel.a;
+        nextOutflowTexel.r
+        + nextOutflowTexel.g
+        + nextOutflowTexel.b
+        + nextOutflowTexel.a;
 
     /////------------TOTAL INFLOW---------////////
     float totalInflow =
@@ -72,10 +72,6 @@ void main() {
     /////------------WATER-H DELTA---------////////
     float waterDeltaHeight = deltaTime * (totalInflow - totalOutflow);
     nextHeightTexel.g += waterDeltaHeight;
-
-    nextHeightTexel.g *= 1.0 - 0.001 * deltaTime;
-
-    nextHeightTexel.g = max(0.0, nextHeightTexel.g);
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);

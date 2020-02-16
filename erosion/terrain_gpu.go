@@ -136,7 +136,9 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+0] = height         // height val
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
-			packedData.heightData[location+3] = rand.Float32() // rain rate
+			if x > 250 && y > 250 && x < 300 && y < 300 {
+				packedData.heightData[location+3] = rand.Float32() // rain rate
+			}
 		}
 	}
 
@@ -182,21 +184,23 @@ func (e *GPUEroder) setupTextures() {
 	// BindFramebuffer textures as colour attachments to the FBO
 	// Create texture for height, waterHeight, sediment
 	gl.ActiveTexture(gl.TEXTURE0)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.BindTexture(gl.TEXTURE_2D, e.nextHeightColorBuffer)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	//gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
 	gl.BindImageTexture(0, e.nextHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	// Create texture for Water Outflow
 	gl.BindTexture(gl.TEXTURE_2D, e.nextOutflowColorBuffer)
-	//gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(1, e.nextOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	// Create texture for velocity
@@ -244,7 +248,7 @@ func (e *GPUEroder) Pass() {
 	// Copy "next" textures into "current"
 	width, height := e.heightmap.Dimensions()
 
-	// Transfer the newly computed values from the previous pass into readonly buffers.
+	// Transfer the newly computed values from the previous pass into readonly "current" buffers.
 	e.copyToCurrent()
 
 	// Render a plane to the FBO
@@ -257,6 +261,10 @@ func (e *GPUEroder) Pass() {
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
 	gl.UseProgram(e.waterHeightProgram)
+	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+	gl.UseProgram(e.velocityProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }

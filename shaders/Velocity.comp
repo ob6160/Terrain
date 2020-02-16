@@ -1,10 +1,34 @@
 #version 430 core
 
 layout (local_size_x = 1, local_size_y = 1) in;
-layout (rgba8, binding = 0) writeonly uniform highp image2D heightTex;
-layout (rgba8, binding = 1) writeonly uniform highp image2D outflowTex;
-layout (rgba8, binding = 2) writeonly uniform highp image2D velocityTex;
+// r -> terrainHeight, g -> waterHeight, b -> sediment, a -> constant rain rate.
+layout (rgba32f, binding = 0) uniform highp image2D nextHeightTex;
+layout (rgba32f, binding = 1) uniform highp image2D nextOutflowTex;
+layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
+
+layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
+layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
+layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
+
+const float deltaTime = 0.05;
+
 void main() {
+    // TODO: 1. Bounds check
+    /////----------------------------------
+    vec4 currentHeightTexel, currentOutflowTexel;
+    vec4 nextHeightTexel, nextOutflowTexel;
+    /////----------------------------------
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
-    imageStore(heightTex, storePos, vec4(vec2(gl_WorkGroupID.xy) / vec2(gl_NumWorkGroups.xy), 0.0, 1.0));
+    // Next Data
+    nextHeightTexel = imageLoad(nextHeightTex, storePos);
+    nextOutflowTexel = imageLoad(nextOutflowTex, storePos);
+    // Current Data
+    currentHeightTexel = imageLoad(currentHeightTex, storePos);
+    currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
+
+
+    nextHeightTexel.g *= 1 - 0.1 * deltaTime;
+
+    imageStore(nextHeightTex, storePos, nextHeightTexel);
+    imageStore(nextOutflowTex, storePos, nextOutflowTexel);
 }

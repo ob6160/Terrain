@@ -10,8 +10,8 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.01;
-const float waterIncrementRate = 0.012;
+const float deltaTime = 0.05;
+const float waterIncrementRate = 0.5;
 
 void main() {
     vec4 heightTexel, outflowTexel;
