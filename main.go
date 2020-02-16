@@ -328,7 +328,7 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	coreState.GPUEroder.Pass()
 
 	coreState.GPUEroder.BindHeightDrawFramebuffer()
-	coreState.GPUEroder.BindHeightReadFramebuffer()
+	coreState.GPUEroder.BindNextHeightReadFramebuffer()
 	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -336,7 +336,7 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 
 	coreState.GPUEroder.BindOutflowDrawFramebuffer()
-	coreState.GPUEroder.BindOutflowReadFramebuffer()
+	coreState.GPUEroder.BindNextOutflowReadFramebuffer()
 	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
 		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
