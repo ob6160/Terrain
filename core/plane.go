@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/go-gl/gl/v4.3-core/gl"
-	"github.com/ob6160/Terrain/utils"
 	"math"
 )
 
@@ -59,7 +58,8 @@ func (p *Plane) Construct(sourceWidth, sourceHeight int) {
 			(*vertices)[vertIndex+0] = float32(y - (p.rows-1)/2)
 			(*vertices)[vertIndex+1] = 1.0
 			(*vertices)[vertIndex+2] = float32(x - (p.cols-1)/2)
-			(*vertices)[vertIndex+3] = float32(utils.ToIndex(lowSampleX, lowSampleY, sourceWidth))
+			(*vertices)[vertIndex+3] = float32(lowSampleX)
+			(*vertices)[vertIndex+4] = float32(lowSampleY)
 			vertIndex += 9
 		}
 	}

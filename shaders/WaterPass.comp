@@ -1,6 +1,6 @@
 #version 430 core
 
-layout (local_size_x = 1, local_size_y = 1) in;
+layout (local_size_x = 32, local_size_y = 32) in;
 // r -> terrainHeight, g -> waterHeight, b -> sediment, a -> constant rain rate.
 layout (rgba32f, binding = 0) uniform highp image2D nextHeightTex;
 layout (rgba32f, binding = 1) uniform highp image2D nextOutflowTex;
@@ -30,5 +30,4 @@ void main() {
     heightTexel.g += rainRate * deltaTime * waterIncrementRate;
 
     imageStore(nextHeightTex, storePos, heightTexel);
-    imageStore(nextOutflowTex, storePos, outflowTexel);
 }

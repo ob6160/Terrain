@@ -7,8 +7,7 @@ uniform float angle;
 uniform float height;
 uniform vec3 hitpos;
 
-uniform samplerBuffer tboWaterHeight;
-uniform samplerBuffer tboHeightmap;
+layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 
 layout (location = 0) in vec3 vert;
 layout (location = 1) in vec3 normal;
@@ -24,10 +23,10 @@ void main() {
     fragTexCoord = texcoord;
     vertex = vert;
 
-    terrainHeight = texelFetch(tboHeightmap, int(normal.x)).r;
+    vec4 heightTexel = imageLoad(currentHeightTex, ivec2(int(normal.x), int(normal.y)));
+    terrainHeight = heightTexel.r;
+    waterHeight = heightTexel.g;
 
-    // Water calculations
-    waterHeight = texelFetch(tboWaterHeight, int(normal.x)).r;
     float waterHeightMod = 0.0;
     if(waterHeight > 0.0) {
         waterHeightMod = waterHeight * height;

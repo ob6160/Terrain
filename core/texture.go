@@ -11,6 +11,10 @@ import (
 	"unsafe"
 )
 
+/**
+ * Standard 'gl texture initialisation and creation function.
+ * Pass `nil` if no initial data.
+ */
 func NewTexture(width, height int, data unsafe.Pointer) uint32 {
 	var texture uint32
 	gl.GenTextures(1, &texture)

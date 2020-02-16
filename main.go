@@ -2,6 +2,7 @@ package main
 
 import "C"
 import (
+	"fmt"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
@@ -45,6 +46,7 @@ type State struct {
 	DebugField      []byte
 	DebugFieldLen   int32
 	InfoValueString string
+	iterations int
 }
 
 func setupUniforms(state *State) {
@@ -100,9 +102,7 @@ func main() {
 	defer newGUI.Dispose()
 
 	var testPlane = core.NewPlane(512, 512)
-	var midpointDisp = generators.NewMidPointDisplacement(512, 512)
-	midpointDisp.Generate(0.5, 0.5)
-	midpointDisp.Generate(0.5, 0.5)
+	var midpointDisp = generators.NewMidPointDisplacement(1024, 1024)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
@@ -157,7 +157,7 @@ func main() {
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise()
-	state.Plane.Construct(256, 256)
+	state.Plane.Construct(1024, 1024)
 
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
@@ -206,18 +206,18 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	treeNodeFlags := imgui.TreeNodeFlagsDefaultOpen
 	windowFlags := imgui.WindowFlagsMenuBar
 	if imgui.BeginV("GPU Debug View", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED), imgui.Vec2{64, 64})
 		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.GREEN), imgui.Vec2{64, 64})
 
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.BLUE), imgui.Vec2{64, 64})
 		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.ALPHA), imgui.Vec2{64, 64})
 	}
 	imgui.End()
 
 	if imgui.BeginV("GPU Debug View Outflow", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{512, 512})
 		//imgui.SameLine()
 		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
 		//
@@ -315,32 +315,27 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	{
 		gl.UseProgram(coreState.Program)
 		updateUniforms(coreState)
-		coreState.TerrainEroder.UpdateBuffers()
-		{
-			gl.ActiveTexture(gl.TEXTURE0)
-			gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
-			gl.ActiveTexture(gl.TEXTURE1)
-			gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
-		}
 		coreState.Plane.M().Draw()
 	}
 
-
-	width, height := g.GetSize()
 	coreState.GPUEroder.Pass()
+	coreState.iterations++
+	fmt.Printf("%d Iterations\n", coreState.iterations)
+
+	sWidth, sHeight := coreState.MidpointGen.Dimensions()
 
 	coreState.GPUEroder.BindHeightDrawFramebuffer()
 	coreState.GPUEroder.BindNextHeightReadFramebuffer()
-	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
-		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BlitFramebuffer(0, 0, int32(sWidth), int32(sHeight),
+		0, 0, int32(sWidth), int32(sHeight), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 
 	coreState.GPUEroder.BindOutflowDrawFramebuffer()
 	coreState.GPUEroder.BindNextOutflowReadFramebuffer()
-	gl.BlitFramebuffer(0, 0, int32(width), int32(height),
-		0, 0, int32(width), int32(height), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BlitFramebuffer(0, 0, int32(sWidth), int32(sHeight),
+		0, 0, int32(sWidth), int32(sHeight), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
@@ -349,6 +344,7 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 		g.Render(coreState.renderUI)
 	}
 
+	width, height := g.GetSize()
 	gl.Viewport(0, 0, int32(width), int32(height))
 	g.SwapBuffers()
 }

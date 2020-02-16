@@ -84,7 +84,10 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+0] = height         // height val
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
-			packedData.heightData[location+3] = rand.Float32() // rain rate
+			if x < 512 && y < 512 && x > 450 && y > 450 {
+
+				packedData.heightData[location+3] = rand.Float32() * 100.0 // rain rate
+			}
 
 			packedData.outflowData[location+0] = 0.0           // left outflow
 			packedData.outflowData[location+1] = 0.0           // right outflow
@@ -220,15 +223,15 @@ func (e *GPUEroder) copyNextToCurrent() {
 	// Copy next to current at the start of each pass.
 	// Expose the modified textures from last pass using a framebuffer for each.
 	// Copy the bound framebuffer to the current texture for each.
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
+	e.BindNextHeightReadFramebuffer()
 	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferOutflow)
+	e.BindNextOutflowReadFramebuffer()
 	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferVelocity)
+	e.BindNextVelocityReadFramebuffer()
 	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 }
@@ -243,24 +246,28 @@ func (e *GPUEroder) Pass() {
 	// Transfer the newly computed values from the previous pass into readonly "current" buffers.
 	e.copyNextToCurrent()
 
+	const subdivideSize int = 32
+	subW := uint32(width / subdivideSize)
+	subH := uint32(height / subdivideSize)
+	
 	// Distribute new "water" across the terrain
 	gl.UseProgram(e.waterPassProgram)
-	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
 	// Calculate the movement of water across each cell of the terrain.
 	gl.UseProgram(e.outflowProgram)
-	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
 	// Calculate the resultant height of water in each cell based on previous step.
 	gl.UseProgram(e.waterHeightProgram)
-	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
 	// Calculate the velocity of water as it moves across the terrain.
 	gl.UseProgram(e.velocityProgram)
-	gl.DispatchCompute(uint32(width), uint32(height), 1)
+	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
 
