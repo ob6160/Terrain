@@ -45,7 +45,6 @@ type State struct {
 	DebugField      []byte
 	DebugFieldLen   int32
 	InfoValueString string
-	testTexture     uint32
 }
 
 func setupUniforms(state *State) {
@@ -101,7 +100,8 @@ func main() {
 	defer newGUI.Dispose()
 
 	var testPlane = core.NewPlane(512, 512)
-	var midpointDisp = generators.NewMidPointDisplacement(512, 512)
+	var midpointDisp = generators.NewMidPointDisplacement(1024, 1024)
+	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
@@ -118,12 +118,6 @@ func main() {
 	}
 	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	var gpuEroder = erosion.NewGPUEroder(midpointDisp)
-
-	testTexture, err := core.NewTexture("./demo_1.png")
-	if err != nil {
-		print("error loading image")
-		print(err)
-	}
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{
@@ -149,7 +143,6 @@ func main() {
 		DebugField:      make([]byte, 1000),
 		DebugFieldLen:   0,
 		InfoValueString: "",
-		testTexture:     testTexture,
 	}
 
 	program, err := core.NewProgramFromPath(vertexShaderPath, fragShaderPath)
@@ -228,13 +221,13 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.End();
 
 	if imgui.BeginV("GPU Debug View Outflow", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED), imgui.Vec2{256, 256})
-		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
-
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
-		imgui.SameLine()
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{1024, 1024})
+		//imgui.SameLine()
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+		//
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		//imgui.SameLine()
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
 	}
 	imgui.End()
 

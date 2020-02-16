@@ -136,9 +136,19 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+0] = height         // height val
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
-			if x > 250 && y > 250 && x < 300 && y < 300 {
+			//if x > 250 && y > 250 && x < 300 && y < 300 {
 				packedData.heightData[location+3] = rand.Float32() // rain rate
-			}
+			//}
+
+			packedData.outflowData[location] = 0.0
+			packedData.outflowData[location+1] = 0.0
+			packedData.outflowData[location+2] = 0.0
+			packedData.outflowData[location+3] = 0.0
+
+			packedData.velocityData[location] = 0.0
+			packedData.velocityData[location+1] = 0.0
+			packedData.velocityData[location+2] = 0.0
+			packedData.velocityData[location+3] = 0.0
 		}
 	}
 
@@ -152,29 +162,6 @@ func (e *GPUEroder) setupTextures() {
 	// TODO: Abstract texture creation into its own function
 	// TODO: Split up creation of the two stages of buffers into separate functions
 
-	// Gen current textures
-	gl.GenTextures(1, &e.currentHeightColorBuffer)
-	gl.GenTextures(1, &e.currentOutflowColorBuffer)
-	gl.GenTextures(1, &e.currentVelocityColorBuffer)
-
-	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
-	
-	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
-
-	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
-	
 	// Gen next textures
 	gl.GenTextures(1, &e.nextHeightColorBuffer)
 	gl.GenTextures(1, &e.nextOutflowColorBuffer)
@@ -184,19 +171,19 @@ func (e *GPUEroder) setupTextures() {
 	// BindFramebuffer textures as colour attachments to the FBO
 	// Create texture for height, waterHeight, sediment
 	gl.ActiveTexture(gl.TEXTURE0)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.BindTexture(gl.TEXTURE_2D, e.nextHeightColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
 	gl.BindImageTexture(0, e.nextHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	// Create texture for Water Outflow
 	gl.BindTexture(gl.TEXTURE_2D, e.nextOutflowColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -209,7 +196,56 @@ func (e *GPUEroder) setupTextures() {
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(2, e.nextVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+
+
+	// ===========================
+
+
+
+
+	// Gen current textures
+	gl.GenTextures(1, &e.currentHeightColorBuffer)
+	gl.GenTextures(1, &e.currentOutflowColorBuffer)
+	gl.GenTextures(1, &e.currentVelocityColorBuffer)
+
+	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.velocityData))
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+
+
+
+
+
+	// ===========================
+
+
 
 	// Send the textures to a framebuffer for our bulk copy operation every pass.
 	gl.GenFramebuffers(1, &e.copyFrameBufferHeight)
@@ -236,11 +272,11 @@ func (e *GPUEroder) copyToCurrent() {
 
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
-	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 1, 0, 0, 0, 0, int32(width), int32(height))
+	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
-	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 2, 0, 0, 0, 0, int32(width), int32(height))
+	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
 }
 

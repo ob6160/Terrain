@@ -10,7 +10,7 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.01;
+const float deltaTime = 0.02;
 
 void main() {
     // TODO: 1. Bounds check
@@ -27,7 +27,7 @@ void main() {
     currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
 
 
-    nextHeightTexel.g *= 1 - 0.001 * deltaTime;
+    nextHeightTexel.g *= 1 - 0.015 * deltaTime;
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);
