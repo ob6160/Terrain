@@ -18,7 +18,7 @@ type PackedData struct {
 type GPUEroder struct {
 	heightmap                                                                                              generators.TerrainGenerator
 	simulationState                                                                                        *PackedData
-	copyFrameBufferHeight, copyFrameBufferOutflow, copyFrameBufferVelocity                                 uint32
+	nextFrameBufferHeight, nextFrameBufferOutflow, nextFrameBufferVelocity                                 uint32
 	displayFrameBufferHeight, displayTextureHeight                                                         uint32
 	displayFrameBufferOutflow, displayTextureOutflow                                                       uint32
 	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer                        uint32
@@ -82,8 +82,9 @@ func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
 	e.packData()
-	e.setupShaders()
+	e.loadComputeShaders()
 	e.setupTextures()
+	e.setupFramebuffers()
 	return e
 }
 
@@ -96,15 +97,15 @@ func (e *GPUEroder) BindHeightDrawFramebuffer() {
 }
 
 func (e *GPUEroder) BindHeightReadFramebuffer() {
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
 }
 
 func (e *GPUEroder) BindOutflowReadFramebuffer() {
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferOutflow)
 }
 
 func (e *GPUEroder) BindVelocityReadFramebuffer() {
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferVelocity)
 }
 
 func (e *GPUEroder) HeightDisplayTexture() uint32 {
@@ -159,15 +160,31 @@ func (e *GPUEroder) setupTextures() {
 	// TODO: Abstract texture creation into its own function
 	// TODO: Split up creation of the two stages of buffers into separate functions
 
+	// Generate and store references to each simulation state texture.
+
 	// Gen next textures
 	gl.GenTextures(1, &e.nextHeightColorBuffer)
 	gl.GenTextures(1, &e.nextOutflowColorBuffer)
 	gl.GenTextures(1, &e.nextVelocityColorBuffer)
 
-	// These are used to write to (they represent the new state of the simulation).
-	// BindFramebuffer textures as colour attachments to the FBO
-	// Create texture for height, waterHeight, sediment
-	gl.ActiveTexture(gl.TEXTURE0)
+	// Gen current textures
+	gl.GenTextures(1, &e.currentHeightColorBuffer)
+	gl.GenTextures(1, &e.currentOutflowColorBuffer)
+	gl.GenTextures(1, &e.currentVelocityColorBuffer)
+
+	// These are used to write to from the compute shader (they represent the new state of the simulation).
+	// We eventually bind each texture as a colour attachment to a FBO
+
+
+	// Next state textures (written to by the Compute Shader) //
+
+	/**
+	 * Texture stored state:
+	 * 	- Terrain Height
+	 *  - Water Height
+	 *  - Sediment
+	 *  - Rain Rate
+	 */
 	gl.BindTexture(gl.TEXTURE_2D, e.nextHeightColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
@@ -177,7 +194,13 @@ func (e *GPUEroder) setupTextures() {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(0, e.nextHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-	// Create texture for Water Outflow
+	/**
+	 * Texture stored state:
+	 * 	- left outflow
+	 *  - right outflow
+	 *  - top outflow
+	 *  - bottom outflow
+	 */
 	gl.BindTexture(gl.TEXTURE_2D, e.nextOutflowColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
@@ -187,7 +210,13 @@ func (e *GPUEroder) setupTextures() {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(1, e.nextOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-	// Create texture for velocity
+	/**
+	 * Texture stored state:
+	 * 	- Vel X
+	 *  - Vel Y
+	 *  - nil
+	 *  - nil
+	 */
 	gl.BindTexture(gl.TEXTURE_2D, e.nextVelocityColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
@@ -199,10 +228,7 @@ func (e *GPUEroder) setupTextures() {
 
 	// ===========================
 
-	// Gen current textures
-	gl.GenTextures(1, &e.currentHeightColorBuffer)
-	gl.GenTextures(1, &e.currentOutflowColorBuffer)
-	gl.GenTextures(1, &e.currentVelocityColorBuffer)
+	// Current state textures, the contents of the next shaders are copied to these at the end of each pass. //
 
 	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
@@ -232,45 +258,56 @@ func (e *GPUEroder) setupTextures() {
 	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
 	// ===========================
+}
 
-	// Send the textures to a framebuffer for our bulk copy operation every pass.
-	gl.GenFramebuffers(1, &e.copyFrameBufferHeight)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+func (e *GPUEroder) setupFramebuffers() {
+	// Generate and store references to each framebuffer.
+	gl.GenFramebuffers(1, &e.nextFrameBufferHeight)
+	gl.GenFramebuffers(1, &e.nextFrameBufferOutflow)
+	gl.GenFramebuffers(1, &e.nextFrameBufferVelocity)
+
+	// Attach each state to an associated read only framebuffer for bulk copy operation.
+
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextHeightColorBuffer, 0)
 
-	gl.GenFramebuffers(1, &e.copyFrameBufferOutflow)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferOutflow)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextOutflowColorBuffer, 0)
 
-	gl.GenFramebuffers(1, &e.copyFrameBufferVelocity)
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferVelocity)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextVelocityColorBuffer, 0)
 }
 
-func (e *GPUEroder) copyToCurrent() {
+/**
+ * Copies the state of the last pass to the current textures, ready for the next.
+ */
+func (e *GPUEroder) copyNextToCurrent() {
 	width, height := e.heightmap.Dimensions()
 	// Copy next to current at the start of each pass.
 	// Expose the modified textures from last pass using a framebuffer for each.
 	// Copy the bound framebuffer to the current texture for each.
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferHeight)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferOutflow)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferOutflow)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 
-	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferVelocity)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
 }
 
+/**
+ * Executes a single compute shader pipeline pass on the simulation state textures.
+ */
 func (e *GPUEroder) Pass() {
 	// Copy "next" textures into "current"
 	width, height := e.heightmap.Dimensions()
 
 	// Transfer the newly computed values from the previous pass into readonly "current" buffers.
-	e.copyToCurrent()
+	e.copyNextToCurrent()
 
 	// Distribute new "water" across the terrain
 	gl.UseProgram(e.waterPassProgram)
@@ -293,7 +330,10 @@ func (e *GPUEroder) Pass() {
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
 
-func (e *GPUEroder) setupShaders() {
+/**
+ * Loads each compute shader in the pipeline.
+ */
+func (e *GPUEroder) loadComputeShaders() {
 	var err error
 	e.waterPassProgram, err = core.NewComputeProgramFromPath("./shaders/WaterPass.comp")
 	if err != nil {
