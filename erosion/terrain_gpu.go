@@ -269,6 +269,14 @@ func (e *GPUEroder) Pass() {
 	gl.UseProgram(e.velocityProgram)
 	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+	gl.UseProgram(e.erosionProgram)
+	gl.DispatchCompute(subW, subH, 1)
+	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+	gl.UseProgram(e.sedimentProgram)
+	gl.DispatchCompute(subW, subH, 1)
+	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 }
 
 /**

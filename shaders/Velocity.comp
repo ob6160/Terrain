@@ -13,7 +13,6 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 const float deltaTime = 0.03;
 
 void main() {
-    // TODO: 1. Bounds check
     /////----------------------------------
     vec4 currentHeightTexel, currentOutflowTexel;
     vec4 nextHeightTexel, nextOutflowTexel;
