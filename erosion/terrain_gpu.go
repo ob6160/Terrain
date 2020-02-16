@@ -138,12 +138,12 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+2] = 0.0            // sediment val
 			packedData.heightData[location+3] = rand.Float32() // rain rate
 
-			packedData.outflowData[location] = 0.0
-			packedData.outflowData[location+1] = 0.0
-			packedData.outflowData[location+2] = 0.0
-			packedData.outflowData[location+3] = 0.0
+			packedData.outflowData[location+0] = 0.0           // left outflow
+			packedData.outflowData[location+1] = 0.0           // right outflow
+			packedData.outflowData[location+2] = 0.0           // top outflow
+			packedData.outflowData[location+3] = 0.0           // bottom outflow
 
-			packedData.velocityData[location] = 0.0
+			packedData.velocityData[location+0] = 0.0
 			packedData.velocityData[location+1] = 0.0
 			packedData.velocityData[location+2] = 0.0
 			packedData.velocityData[location+3] = 0.0
@@ -211,7 +211,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
 	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
@@ -220,7 +220,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
 	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
@@ -229,7 +229,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
+	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
 	// ===========================
 
@@ -263,7 +263,6 @@ func (e *GPUEroder) copyToCurrent() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.copyFrameBufferVelocity)
 	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
 	gl.CopyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, int32(width), int32(height))
-
 }
 
 func (e *GPUEroder) Pass() {
@@ -273,19 +272,22 @@ func (e *GPUEroder) Pass() {
 	// Transfer the newly computed values from the previous pass into readonly "current" buffers.
 	e.copyToCurrent()
 
-	// Render a plane to the FBO
+	// Distribute new "water" across the terrain
 	gl.UseProgram(e.waterPassProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+	// Calculate the movement of water across each cell of the terrain.
 	gl.UseProgram(e.outflowProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+	// Calculate the resultant height of water in each cell based on previous step.
 	gl.UseProgram(e.waterHeightProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+	// Calculate the velocity of water as it moves across the terrain.
 	gl.UseProgram(e.velocityProgram)
 	gl.DispatchCompute(uint32(width), uint32(height), 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)

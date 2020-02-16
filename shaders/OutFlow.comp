@@ -15,9 +15,6 @@ const float deltaTime = 0.03;
 const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
-const float cellSizeX = 1.0/512.0;
-const float cellSizeY = 1.0/512.0;
-
 void main() {
     // TODO: 1. Bounds check
     // TODO: 2. Set outflow to zero if at bounds
