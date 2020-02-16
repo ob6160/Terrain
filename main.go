@@ -154,10 +154,10 @@ func main() {
 	setupUniforms(state)
 
 	// Setup terrain
-	//state.MidpointGen.Generate(state.Spread, state.Reduce)
-	//state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
-	//state.TerrainEroder.Initialise()
-	//state.Plane.Construct(256, 256)
+	state.MidpointGen.Generate(state.Spread, state.Reduce)
+	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
+	state.TerrainEroder.Initialise()
+	state.Plane.Construct(256, 256)
 
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
@@ -312,18 +312,20 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 	//}
 
 	// Render Terrain GPU
-	//{
-	//	gl.UseProgram(coreState.Program)
-	//	updateUniforms(coreState)
-	//	coreState.TerrainEroder.UpdateBuffers()
-	//	{
-	//		gl.ActiveTexture(gl.TEXTURE0)
-	//		gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
-	//		gl.ActiveTexture(gl.TEXTURE1)
-	//		gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
-	//	}
-	//	coreState.Plane.M().Draw()
-	//}
+	{
+		gl.UseProgram(coreState.Program)
+		updateUniforms(coreState)
+		coreState.TerrainEroder.UpdateBuffers()
+		{
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.Uniform1i(coreState.Uniforms["waterHeightUniform"], 0)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.Uniform1i(coreState.Uniforms["heightmapUniform"], 1)
+		}
+		coreState.Plane.M().Draw()
+	}
+
+
 	width, height := g.GetSize()
 	coreState.GPUEroder.Pass()
 

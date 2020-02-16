@@ -26,7 +26,6 @@ void main() {
     currentHeightTexel = imageLoad(currentHeightTex, storePos);
     currentOutflowTexel = imageLoad(currentOutflowTex, storePos);
 
-
     nextHeightTexel.g *= 1 - 0.001 * deltaTime;
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);

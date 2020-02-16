@@ -7,6 +7,7 @@ import (
 	"github.com/ob6160/Terrain/utils"
 	_ "github.com/ob6160/Terrain/utils"
 	"math/rand"
+	"unsafe"
 )
 
 type PackedData struct {
@@ -104,34 +105,20 @@ func (e *GPUEroder) setupTextures() {
 	var width, height = e.heightmap.Dimensions()
 
 	// Display Textures
+	// These are used to reference each texture for rendering to the screen as debug output.
 
 	// Setup texture for height display.
 	e.displayTextureHeight = core.NewTexture(width, height, nil)
-
 	// Setup texture for outflow display.
 	e.displayTextureOutflow = core.NewTexture(width, height, nil)
 
 	// ===========================
 
 	// State Textures
-
-	// Generate and store references to each simulation state texture.
-
-	// Gen next textures
-	gl.GenTextures(1, &e.nextHeightColorBuffer)
-	gl.GenTextures(1, &e.nextOutflowColorBuffer)
-	gl.GenTextures(1, &e.nextVelocityColorBuffer)
-
-	// Gen current textures
-	gl.GenTextures(1, &e.currentHeightColorBuffer)
-	gl.GenTextures(1, &e.currentOutflowColorBuffer)
-	gl.GenTextures(1, &e.currentVelocityColorBuffer)
-
 	// These are used to write to from the compute shader (they represent the new state of the simulation).
 	// We eventually bind each texture as a colour attachment to a FBO
 
-
-	// Next state textures (written to by the Compute Shader) //
+	// Next state textures (written to by the Compute Shader).
 
 	/**
 	 * Texture stored state:
@@ -140,13 +127,7 @@ func (e *GPUEroder) setupTextures() {
 	 *  - Sediment
 	 *  - Rain Rate
 	 */
-	gl.BindTexture(gl.TEXTURE_2D, e.nextHeightColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	e.nextHeightColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.heightData))
 	gl.BindImageTexture(0, e.nextHeightColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	/**
@@ -156,13 +137,7 @@ func (e *GPUEroder) setupTextures() {
 	 *  - top outflow
 	 *  - bottom outflow
 	 */
-	gl.BindTexture(gl.TEXTURE_2D, e.nextOutflowColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	e.nextOutflowColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.outflowData))
 	gl.BindImageTexture(1, e.nextOutflowColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
 	/**
@@ -172,47 +147,33 @@ func (e *GPUEroder) setupTextures() {
 	 *  - nil
 	 *  - nil
 	 */
-	gl.BindTexture(gl.TEXTURE_2D, e.nextVelocityColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, nil)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	e.nextVelocityColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.velocityData))
 	gl.BindImageTexture(2, e.nextVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-	// ===========================
+	// Current state textures (written to by the Compute Shader).
 
 	// Current state textures, the contents of the next shaders are copied to these at the end of each pass. //
-
-	gl.BindTexture(gl.TEXTURE_2D, e.currentHeightColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.heightData))
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	e.currentHeightColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.heightData))
 	gl.BindImageTexture(3, e.currentHeightColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
-	gl.BindTexture(gl.TEXTURE_2D, e.currentOutflowColorBuffer)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.outflowData))
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	e.currentOutflowColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.velocityData))
 	gl.BindImageTexture(4, e.currentOutflowColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
 
-	gl.BindTexture(gl.TEXTURE_2D, e.currentVelocityColorBuffer)
+	e.currentVelocityColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.velocityData))
+	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
+}
+
+func createStateTexture(width, height int, data unsafe.Pointer) uint32 {
+	var texture uint32
+	gl.GenTextures(1, &texture)
+	gl.BindTexture(gl.TEXTURE_2D, texture)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, gl.Ptr(e.simulationState.velocityData))
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, data)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_ONLY, gl.RGBA32F)
-
-	// ===========================
+	return texture
 }
 
 func (e *GPUEroder) setupFramebuffers() {
