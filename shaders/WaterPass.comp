@@ -10,10 +10,15 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.02;
-const float waterIncrementRate = 0.012;
+const float deltaTime = 0.03;
+const float waterIncrementRate = 0.0012;
 
 void main() {
+
+    // TODO: Use mouse to add water?
+    // TODO: Toggle rain?
+    // TODO: . . .
+
     vec4 heightTexel, outflowTexel;
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     heightTexel = imageLoad(currentHeightTex, storePos);

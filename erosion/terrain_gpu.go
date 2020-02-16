@@ -136,9 +136,7 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+0] = height         // height val
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
-			//if x > 250 && y > 250 && x < 300 && y < 300 {
-				packedData.heightData[location+3] = rand.Float32() // rain rate
-			//}
+			packedData.heightData[location+3] = rand.Float32() // rain rate
 
 			packedData.outflowData[location] = 0.0
 			packedData.outflowData[location+1] = 0.0
@@ -157,7 +155,6 @@ func (e *GPUEroder) packData() {
 
 func (e *GPUEroder) setupTextures() {
 	var width, height = e.heightmap.Dimensions()
-
 
 	// TODO: Abstract texture creation into its own function
 	// TODO: Split up creation of the two stages of buffers into separate functions
@@ -200,12 +197,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(2, e.nextVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-
-
 	// ===========================
-
-
-
 
 	// Gen current textures
 	gl.GenTextures(1, &e.currentHeightColorBuffer)
@@ -239,13 +231,7 @@ func (e *GPUEroder) setupTextures() {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.BindImageTexture(5, e.currentVelocityColorBuffer, 0, false, 0, gl.READ_WRITE, gl.RGBA32F)
 
-
-
-
-
 	// ===========================
-
-
 
 	// Send the textures to a framebuffer for our bulk copy operation every pass.
 	gl.GenFramebuffers(1, &e.copyFrameBufferHeight)

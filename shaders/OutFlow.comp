@@ -11,7 +11,7 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 // uniform: deltaTime
 
-const float deltaTime = 0.02;
+const float deltaTime = 0.03;
 const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 
@@ -109,11 +109,11 @@ void main() {
         topOutflow = 0.0;
     }
 
-    if(storePos.x == 1023) {
+    if(storePos.x == 511) {
         rightOutflow = 0.0;
     }
 
-    if(storePos.y == 1023) {
+    if(storePos.y == 511) {
         bottomOutflow = 0.0;
     }
 
