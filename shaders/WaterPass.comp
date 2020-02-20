@@ -11,7 +11,7 @@ layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 const float deltaTime = 0.03;
-const float waterIncrementRate = 0.0012;
+const float waterIncrementRate = 0.012;
 
 void main() {
 

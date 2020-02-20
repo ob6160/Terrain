@@ -86,7 +86,7 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+2] = 0.0            // sediment val
 			if x < 512 && y < 512 && x > 450 && y > 450 {
 
-				packedData.heightData[location+3] = rand.Float32() * 100.0 // rain rate
+				packedData.heightData[location+3] = rand.Float32() // rain rate
 			}
 
 			packedData.outflowData[location+0] = 0.0           // left outflow
