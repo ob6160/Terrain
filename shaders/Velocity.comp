@@ -14,16 +14,58 @@ const float deltaTime = 0.03;
 
 void main() {
     /////----------------------------------
-    vec4 currentHeightTexel, currentOutflowTexel;
-    vec4 nextHeightTexel, nextOutflowTexel;
+    vec4 currentHeightTexel, currentOutflowTexel, currentVelocityTexel;
+    vec4 nextHeightTexel, nextOutflowTexel, nextVelocityTexel;
     /////----------------------------------
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
     // Next Data
     nextHeightTexel = imageLoad(nextHeightTex, storePos);
     nextOutflowTexel = imageLoad(nextOutflowTex, storePos);
+    nextVelocityTexel = imageLoad(nextVelocityTex, storePos);
 
-    nextHeightTexel.g *= 1 - 0.001 * deltaTime;
+    /////------------X Component of Velocity---------////////
+
+    /////------------LEFT INFLOW---------////////
+    ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
+    vec4 leftCurrentOuflow = imageLoad(nextOutflowTex, leftStorePos);
+    float leftCellRightOutflow = leftCurrentOuflow.g;
+
+    /////------------LEFT OUTFLOW---------////////
+    float currentCellLeftOutflow = nextOutflowTexel.r;
+
+    /////------------RIGHT OUTFLOW---------////////
+    float currentCellRightOutflow = nextOutflowTexel.g;
+
+    /////------------RIGHT INFLOW---------////////
+    ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
+    vec4 rightCurrentOuflow = imageLoad(nextOutflowTex, rightStorePos);
+    float rightCellLeftOutflow = rightCurrentOuflow.r;
+
+    float velX = 0.5 * (leftCellRightOutflow - currentCellLeftOutflow + currentCellRightOutflow - rightCellLeftOutflow);
+
+    /////------------Y Component of Velocity---------////////
+
+    /////------------TOP INFLOW---------////////
+    ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
+    vec4 topCurrentOuflow = imageLoad(nextOutflowTex, topStorePos);
+    float topCellBottomOutflow = topCurrentOuflow.a;
+
+    /////------------TOP OUTFLOW---------////////
+    float currentCellTopOutflow = nextOutflowTexel.b;
+
+    /////------------BOTTOM OUTFLOW---------////////
+    float currentCellBottomOutflow = nextOutflowTexel.a;
+
+    /////------------BOTTOM INFLOW---------////////
+    ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
+    vec4 bottomCurrentOuflow = imageLoad(nextOutflowTex, bottomStorePos);
+    float bottomCellTopOutflow = topCurrentOuflow.b;
+
+    float velY = 0.5 * (topCellBottomOutflow - currentCellTopOutflow + currentCellBottomOutflow - bottomCellTopOutflow);
+
+    vec4 newVel = vec4(velX, velY, 0.0, 0.0);
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);
+    imageStore(nextVelocityTex, storePos, newVel);
 }

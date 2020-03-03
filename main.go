@@ -101,8 +101,9 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 
-	var testPlane = core.NewPlane(512, 512)
+	var testPlane = core.NewPlane(1024, 1024)
 	var midpointDisp = generators.NewMidPointDisplacement(1024, 1024)
+	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
@@ -227,6 +228,17 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	}
 	imgui.End()
 
+	if imgui.BeginV("GPU Debug View Velocity", &guiState.GPUDebugWindowOpen, windowFlags) {
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.VelocityDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{512, 512})
+		//imgui.SameLine()
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
+		//
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.BLUE), imgui.Vec2{256, 256})
+		//imgui.SameLine()
+		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.ALPHA), imgui.Vec2{256, 256})
+	}
+	imgui.End()
+
 	if imgui.BeginV("Terrain", &guiState.TerrainWindowOpen, windowFlags) {
 		if imgui.TreeNodeV("Camera", treeNodeFlags) {
 			imgui.PushItemWidth(80)
@@ -324,6 +336,9 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 
 	sWidth, sHeight := coreState.MidpointGen.Dimensions()
 
+	/*
+	 * Read from our simulation state into a draw framebuffer for visualisation.
+	 */
 	coreState.GPUEroder.BindHeightDrawFramebuffer()
 	coreState.GPUEroder.BindNextHeightReadFramebuffer()
 	gl.BlitFramebuffer(0, 0, int32(sWidth), int32(sHeight),
@@ -334,6 +349,14 @@ func render(g *gui.GUI, coreState *State, timer time.Time) {
 
 	coreState.GPUEroder.BindOutflowDrawFramebuffer()
 	coreState.GPUEroder.BindNextOutflowReadFramebuffer()
+	gl.BlitFramebuffer(0, 0, int32(sWidth), int32(sHeight),
+		0, 0, int32(sWidth), int32(sHeight), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
+
+	coreState.GPUEroder.BindVelocityDrawFramebuffer()
+	coreState.GPUEroder.BindNextVelocityReadFramebuffer()
 	gl.BlitFramebuffer(0, 0, int32(sWidth), int32(sHeight),
 		0, 0, int32(sWidth), int32(sHeight), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindTexture(gl.TEXTURE_2D, 0)

@@ -22,6 +22,7 @@ type GPUEroder struct {
 	nextFrameBufferHeight, nextFrameBufferOutflow, nextFrameBufferVelocity                                 uint32
 	displayFrameBufferHeight, displayTextureHeight                                                         uint32
 	displayFrameBufferOutflow, displayTextureOutflow                                                       uint32
+	displayFrameBufferVelocity, displayTextureVelocity                                                     uint32
 	currentOutflowColorBuffer, currentVelocityColorBuffer, currentHeightColorBuffer                        uint32
 	nextOutflowColorBuffer                                                                                 uint32 // o1, o2, o3, o4
 	nextVelocityColorBuffer                                                                                uint32 // vX, vY
@@ -47,6 +48,10 @@ func (e *GPUEroder) BindHeightDrawFramebuffer() {
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBufferHeight)
 }
 
+func (e *GPUEroder) BindVelocityDrawFramebuffer() {
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, e.displayFrameBufferVelocity)
+}
+
 func (e *GPUEroder) BindNextHeightReadFramebuffer() {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
 }
@@ -67,6 +72,11 @@ func (e *GPUEroder) OutflowDisplayTexture() uint32 {
 	return e.displayTextureOutflow
 }
 
+func (e *GPUEroder) VelocityDisplayTexture() uint32 {
+	return e.displayTextureVelocity
+}
+
+
 func (e *GPUEroder) packData() {
 	var width, height = e.heightmap.Dimensions()
 	heightmap := e.heightmap.Heightmap()
@@ -85,8 +95,7 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
 			if x < 512 && y < 512 && x > 450 && y > 450 {
-
-				packedData.heightData[location+3] = rand.Float32() // rain rate
+				packedData.heightData[location+3] = rand.Float32()*5.0 // rain rate
 			}
 
 			packedData.outflowData[location+0] = 0.0           // left outflow
@@ -114,6 +123,8 @@ func (e *GPUEroder) setupTextures() {
 	e.displayTextureHeight = core.NewTexture(width, height, nil)
 	// Setup texture for outflow display.
 	e.displayTextureOutflow = core.NewTexture(width, height, nil)
+	// Setup texture for velocity display.
+	e.displayTextureVelocity = core.NewTexture(width, height, nil)
 
 	// ===========================
 
@@ -190,6 +201,11 @@ func (e *GPUEroder) setupFramebuffers() {
 	gl.GenFramebuffers(1, &e.displayFrameBufferOutflow)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBufferOutflow)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTextureOutflow, 0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+
+	gl.GenFramebuffers(1, &e.displayFrameBufferVelocity)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, e.displayFrameBufferVelocity)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.displayTextureVelocity, 0)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
 	// ===========================

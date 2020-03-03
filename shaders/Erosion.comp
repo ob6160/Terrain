@@ -9,7 +9,40 @@ layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
 layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
+
 void main() {
+    /////----------------------------------
+    vec4 currentHeightTexel, currentOutflowTexel, currentVelocityTexel;
+    vec4 nextHeightTexel, nextOutflowTexel, nextVelocityTexel;
+    /////----------------------------------
     ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
+    ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
+    ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
+    ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
+    // Current Data
+    currentHeightTexel = imageLoad(currentHeightTex, storePos);
+    // Next Data
+    nextHeightTexel = imageLoad(nextHeightTex, storePos);
+    nextOutflowTexel = imageLoad(nextOutflowTex, storePos);
+    nextVelocityTexel = imageLoad(nextVelocityTex, storePos);
+
+    // Load directional height data.
+    vec4 leftCurrentHeightTexel = imageLoad(currentHeightTex, leftStorePos);
+    vec4 rightNextHeightTexel = imageLoad(currentHeightTex, rightStorePos);
+    vec4 topNextHeightTexel = imageLoad(currentHeightTex, topStorePos);
+    vec4 bottomNextHeightTexel = imageLoad(currentHeightTex, bottomStorePos);
+
+    // Get total terrain height (water + land column)
+    float centreCurrentTerrainHeight = currentHeightTexel.r + currentHeightTexel.g;
+    float totalLeftCurrentTerrainHeight = leftCurrentHeightTexel.r + leftCurrentHeightTexel.g;
+    float rightCurrentTerrainHeight = rightCurrentHeightTexel.r + rightNextHeightTexel.g;
+    float topCurrentTerrainHeight = topCurrentHeightTexel.r + topNextHeightTexel.g;
+    float bottomCurrentTerrainHeight = bottomCurrentHeightTexel.r + bottomNextHeightTexel.g;
+
+    // Calculating the tilt angle
+    // Based on:
+    // https://math.stackexchange.com/questions/1044044/local-tilt-angle-based-on-height-field
+    float dx = (rightCurrentTerrainHeight - leftCurrentTerrainHeight)
 
 }
