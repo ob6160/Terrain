@@ -11,7 +11,7 @@ layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
 // uniform: deltaTime
 
-const float deltaTime = 0.03;
+const float deltaTime = 0.02;
 const float pipeCrossSectionalArea = 20.0;
 const float gravitationalConstant = 9.81;
 

@@ -101,10 +101,13 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 
-	var testPlane = core.NewPlane(1024, 1024)
+	var testPlane = core.NewPlane(256, 256)
 	var midpointDisp = generators.NewMidPointDisplacement(1024, 1024)
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.5, 0.5)
+	//midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{
 		WaterIncrementRate:     0.012,
@@ -228,8 +231,8 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	}
 	imgui.End()
 
-	if imgui.BeginV("GPU Debug View Velocity", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.VelocityDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{512, 512})
+	if imgui.BeginV("GPU Debug View Height", &guiState.GPUDebugWindowOpen, windowFlags) {
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{1024, 1024})
 		//imgui.SameLine()
 		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
 		//

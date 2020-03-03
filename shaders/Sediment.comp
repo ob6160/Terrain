@@ -9,7 +9,34 @@ layout (rgba32f, binding = 2) uniform highp image2D nextVelocityTex;
 layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
-void main() {
-    ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
 
+const float sedimentCapacity = 5.0;
+const float soilSuspensionRate = 0.5;
+const float sedimentDepositionRate = 0.1;
+const float deltaTime = 0.02;
+
+void main() {
+    /////----------------------------------
+    vec4 currentHeightTexel, currentOutflowTexel, currentVelocityTexel;
+    vec4 nextHeightTexel, nextOutflowTexel, nextVelocityTexel;
+    /////----------------------------------
+    ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 leftStorePos = ivec2(storePos.x - 1, storePos.y);
+    ivec2 rightStorePos = ivec2(storePos.x + 1, storePos.y);
+    ivec2 topStorePos = ivec2(storePos.x, storePos.y - 1);
+    ivec2 bottomStorePos = ivec2(storePos.x, storePos.y + 1);
+    // Current Data
+    currentHeightTexel = imageLoad(currentHeightTex, storePos);
+    // Next Data
+    nextHeightTexel = imageLoad(nextHeightTex, storePos);
+    nextOutflowTexel = imageLoad(nextOutflowTex, storePos);
+    nextVelocityTexel = imageLoad(nextVelocityTex, storePos);
+
+    ivec2 vel = ivec2(int(nextVelocityTexel.g * deltaTime), int(nextVelocityTexel.b * deltaTime));
+    ivec2 sum = storePos - vel;
+    vec4 advectedLocationHeight = imageLoad(nextHeightTex, sum);
+
+    nextHeightTexel.b = advectedLocationHeight.b;
+
+    imageStore(nextHeightTex, storePos, nextHeightTexel);
 }
