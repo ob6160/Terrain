@@ -63,7 +63,10 @@ void main() {
 
     float velY = 0.5 * (topCellBottomOutflow - currentCellTopOutflow + currentCellBottomOutflow - bottomCellTopOutflow);
 
-    vec4 newVel = vec4(velX, velY, 0.0, 0.0);
+    vec2 velocity = vec2(velX, velY);
+    float velocityMagnitude = length(velocity);
+
+    vec4 newVel = vec4(velocityMagnitude, velX, velY, 0.0);
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);

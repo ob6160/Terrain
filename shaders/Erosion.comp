@@ -10,6 +10,11 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
+const float sedimentCapacity = 1.0;
+const float soilSuspensionRate = 0.5;
+const float sedimentDepositionRate = 1.0;
+const float deltaTime = 0.03;
+
 void main() {
     /////----------------------------------
     vec4 currentHeightTexel, currentOutflowTexel, currentVelocityTexel;
@@ -43,6 +48,38 @@ void main() {
     // Calculating the tilt angle
     // Based on:
     // https://math.stackexchange.com/questions/1044044/local-tilt-angle-based-on-height-field
-    float dx = (rightCurrentTerrainHeight - leftCurrentTerrainHeight)
+    float dx = (rightCurrentTerrainHeight - leftCurrentTerrainHeight) / 2.0;
+    float dy = (bottomCurrentTerrainHeight - topCurrentTerrainHeight) / 2.0;
+    float tiltAngle = 1.0 / sqrt(1.0 + dx * dx + dy * dy);
+
+    // Get the velocity magnitude
+    float velocityMagnitude = nextVelocityTexel.r;
+
+    // Calculate the water sediment carry capacity (how much sediment can this grid cell carry?)
+    // Notation: {C}
+    float currentSedimentCarryCapacity = sedimentCapacity * tiltAngle * velocityMagnitude;
+
+
+    // Caclulate the sediment carry capacity for the current grid point.
+    // Notation: {St}.
+    float currentDissolvedSediment = currentHeightTexel.b;
+
+    // Carry out erosion or deposition based upon the calculated carry capacity.
+    // TODO: Look at manipulating the water height here too "stability".
+    if(currentDissolvedSediment < currentSedimentCarryCapacity) {
+        // Dissolve land into water as sediment.
+        // TODO: Involve R(x, y) a hardness coefficient, maybe make upper regions harder?
+        float delta = soilSuspensionRate * (currentSedimentCarryCapacity - currentDissolvedSediment);
+        nextHeightTexel.r = currentHeightTexel.r - deltaTime * delta; // Terrain height
+        nextHeightTexel.b += deltaTime * delta; // Sediment
+    } else {
+        // Deposit sediment onto land.
+        float delta = sedimentDepositionRate * (currentDissolvedSediment - currentSedimentCarryCapacity);
+        nextHeightTexel.r = currentHeightTexel.r + deltaTime * delta; // Terrain height
+        nextHeightTexel.b += deltaTime * delta; // Sediment
+    }
+
+
+    imageStore(nextHeightTex, storePos, nextHeightTexel);
 
 }
