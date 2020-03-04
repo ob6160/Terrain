@@ -10,9 +10,9 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float sedimentCapacity = 1.0;
-const float soilSuspensionRate = 0.5;
-const float sedimentDepositionRate = 1.0;
+const float sedimentCapacity = 0.2;
+const float soilSuspensionRate = 0.2;
+const float sedimentDepositionRate = 0.2;
 const float deltaTime = 0.02;
 
 void main() {
@@ -50,14 +50,15 @@ void main() {
     // https://math.stackexchange.com/questions/1044044/local-tilt-angle-based-on-height-field
     float dx = (rightCurrentTerrainHeight - leftCurrentTerrainHeight) / 2.0;
     float dy = (bottomCurrentTerrainHeight - topCurrentTerrainHeight) / 2.0;
-    float tiltAngle = 1.0 / sqrt(1.0 + dx * dx + dy * dy);
+    float changes = dx * dx + dy * dy;
+    float tiltAngle = sqrt(1.0 - sqrt(changes) / sqrt(1.0 + changes));
 
     // Get the velocity magnitude
     float velocityMagnitude = nextVelocityTexel.r;
 
     // Calculate the water sediment carry capacity (how much sediment can this grid cell carry?)
     // Notation: {C}
-    float currentSedimentCarryCapacity = sedimentCapacity * min(tiltAngle, 0.06) * velocityMagnitude;
+    float currentSedimentCarryCapacity = sedimentCapacity * min(tiltAngle, 0.1) * velocityMagnitude;
 
 
     // Caclulate the sediment carry capacity for the current grid point.

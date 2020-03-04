@@ -105,11 +105,11 @@ void main() {
         topOutflow = 0.0;
     }
 
-    if(storePos.x == 1023) {
+    if(storePos.x == 511) {
         rightOutflow = 0.0;
     }
 
-    if(storePos.y == 1023) {
+    if(storePos.y == 511) {
         bottomOutflow = 0.0;
     }
 

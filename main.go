@@ -101,8 +101,12 @@ func main() {
 	var newGUI, _ = gui.NewGUI(windowWidth, windowHeight)
 	defer newGUI.Dispose()
 
-	var testPlane = core.NewPlane(256, 256)
-	var midpointDisp = generators.NewMidPointDisplacement(1024, 1024)
+	var testPlane = core.NewPlane(512, 512)
+	var midpointDisp = generators.NewMidPointDisplacement(512, 512)
+	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
@@ -161,7 +165,7 @@ func main() {
 	state.MidpointGen.Generate(state.Spread, state.Reduce)
 	state.TerrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
 	state.TerrainEroder.Initialise()
-	state.Plane.Construct(1024, 1024)
+	state.Plane.Construct(512, 512)
 
 	exitC := make(chan struct{}, 1)
 	doneC := make(chan struct{}, 1)
@@ -232,7 +236,7 @@ func (coreState *State) renderUI(guiState *gui.State) {
 	imgui.End()
 
 	if imgui.BeginV("GPU Debug View Height", &guiState.GPUDebugWindowOpen, windowFlags) {
-		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{1024, 1024})
+		imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.HeightDisplayTexture(), utils.RED&utils.GREEN&utils.BLUE&utils.ALPHA), imgui.Vec2{512, 512})
 		//imgui.SameLine()
 		//imgui.Image(utils.FullColourTextureId(coreState.GPUEroder.OutflowDisplayTexture(), utils.GREEN), imgui.Vec2{256, 256})
 		//
