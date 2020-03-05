@@ -10,9 +10,9 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float sedimentCapacity = 0.3;
-const float soilSuspensionRate = 0.2;
-const float sedimentDepositionRate = 0.5;
+const float sedimentCapacity = 0.1;
+const float soilSuspensionRate = 0.1;
+const float sedimentDepositionRate = 0.1;
 const float deltaTime = 0.02;
 
 void main() {
