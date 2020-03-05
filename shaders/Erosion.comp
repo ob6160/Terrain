@@ -10,9 +10,9 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float sedimentCapacity = 0.2;
+const float sedimentCapacity = 0.3;
 const float soilSuspensionRate = 0.2;
-const float sedimentDepositionRate = 0.2;
+const float sedimentDepositionRate = 0.5;
 const float deltaTime = 0.02;
 
 void main() {
@@ -58,7 +58,7 @@ void main() {
 
     // Calculate the water sediment carry capacity (how much sediment can this grid cell carry?)
     // Notation: {C}
-    float currentSedimentCarryCapacity = sedimentCapacity * min(tiltAngle, 0.1) * velocityMagnitude;
+    float currentSedimentCarryCapacity = sedimentCapacity * min(tiltAngle, 0.05) * velocityMagnitude;
 
 
     // Caclulate the sediment carry capacity for the current grid point.

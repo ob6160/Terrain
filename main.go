@@ -109,8 +109,8 @@ func main() {
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
-	midpointDisp.Generate(0.5, 0.5)
-	midpointDisp.Generate(0.5, 0.5)
+	midpointDisp.Generate(0.7, 0.4)
+
 	//midpointDisp.Generate(0.5, 0.5)
 
 	var erosionState = erosion.State{

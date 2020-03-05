@@ -7,30 +7,23 @@ uniform float angle;
 uniform float height;
 uniform vec3 hitpos;
 
-layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
+layout (rgba32f, binding = 0) readonly uniform highp image2D nextHeightTex;
 
 layout (location = 0) in vec3 vert;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texcoord;
 layout (location = 3) in float lookupIndex;
 
-out vec2 fragTexCoord;
+out flat ivec2 fragTexCoord;
 out vec3 vertex;
-out float waterHeight;
-out float terrainHeight;
 
 void main() {
-    fragTexCoord = texcoord;
     vertex = vert;
 
-    vec4 heightTexel = imageLoad(currentHeightTex, ivec2(int(normal.x), int(normal.y)));
-    terrainHeight = heightTexel.r;
-    waterHeight = heightTexel.g;
+    fragTexCoord = ivec2(int(normal.x), int(normal.y));
 
-    float waterHeightMod = 0.0;
-    if(waterHeight > 0.0) {
-        waterHeightMod = waterHeight * height;
-    }
+    vec4 heightTexel = imageLoad(nextHeightTex, fragTexCoord);
+    float terrainHeight = heightTexel.r;
+
     gl_Position = projection * camera * vec4(vec3(vert.x, terrainHeight * height, vert.z), 1.0);
-//    gl_Position = projection * camera * vec4(vec3(vert.x, height * vert.y, vert.z), 1.0);
 }
