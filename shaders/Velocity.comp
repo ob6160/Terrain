@@ -10,7 +10,7 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.02;
+uniform float deltaTime;
 
 void main() {
     /////----------------------------------

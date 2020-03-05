@@ -9,11 +9,9 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-// uniform: deltaTime
-
-const float deltaTime = 0.02;
-const float pipeCrossSectionalArea = 20.0;
-const float gravitationalConstant = 9.81;
+uniform float deltaTime;
+uniform float pipeCrossSectionalArea;
+uniform float gravitationalConstant;
 
 void main() {
     // TODO: 1. Bounds check

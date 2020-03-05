@@ -10,10 +10,10 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float sedimentCapacity = 0.1;
-const float soilSuspensionRate = 0.1;
-const float sedimentDepositionRate = 0.1;
-const float deltaTime = 0.02;
+const float sedimentCapacity = 0.2;
+const float soilSuspensionRate = 0.2;
+const float sedimentDepositionRate = 0.2;
+uniform float deltaTime;
 
 void main() {
     /////----------------------------------
@@ -81,7 +81,7 @@ void main() {
         nextHeightTexel.g -= deltaTime * delta; // Water Height.
         nextHeightTexel.b -=  deltaTime * delta; // Sediment
     }
-    nextHeightTexel.g *= (1.0 - 0.015 * deltaTime);
+    nextHeightTexel.g *= (1.0 - 0.15 * deltaTime);
 
     imageStore(nextHeightTex, storePos, nextHeightTexel);
     imageStore(nextOutflowTex, storePos, nextOutflowTexel);

@@ -10,8 +10,9 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float deltaTime = 0.02;
-const float waterIncrementRate = 0.01;
+uniform float deltaTime;
+uniform float waterIncrementRate;
+uniform int isRaining;
 
 void main() {
 
@@ -27,7 +28,9 @@ void main() {
     float rainRate = heightTexel.a;
 
     // Update water height based on constant rain values for each terrain coord
-    heightTexel.g += rainRate * deltaTime * waterIncrementRate;
+    if(isRaining == 1) {
+        heightTexel.g += rainRate * deltaTime * waterIncrementRate;
+    }
 
     imageStore(nextHeightTex, storePos, heightTexel);
 }

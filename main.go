@@ -108,7 +108,7 @@ func main() {
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
 	midpointDisp.Generate(0.5, 0.5)
-	midpointDisp.Generate(0.5, 0.5)
+	//midpointDisp.Generate(0.6, 0.2)
 	midpointDisp.Generate(1.0, 0.5)
 
 	//midpointDisp.Generate(0.5, 0.5)
@@ -118,7 +118,7 @@ func main() {
 		GravitationalConstant:  9.8,
 		PipeCrossSectionalArea: 20,
 		EvaporationRate:        0.15,
-		TimeStep:               0.002,
+		TimeStep:               0.02,
 		IsRaining:              true,
 		SedimentCarryCapacity:  2.0,
 		SoilDepositionRate:     0.05,
@@ -126,7 +126,7 @@ func main() {
 		MaximalErodeDepth:      0.001,
 	}
 	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
-	var gpuEroder = erosion.NewGPUEroder(midpointDisp)
+	var gpuEroder = erosion.NewGPUEroder(midpointDisp, &erosionState)
 
 	// TODO: Move defaults into configurable constants.
 	var state = &State{

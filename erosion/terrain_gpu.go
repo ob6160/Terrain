@@ -16,6 +16,12 @@ type PackedData struct {
 	outflowData  []float32
 }
 
+type UniformMap map[string]int32 //program -> name -> handle
+type ProgramMap map[uint32]UniformMap
+
+/**
+ * TODO: Move program variables into a map like Uniforms?
+ */
 type GPUEroder struct {
 	heightmap                                                                                              generators.TerrainGenerator
 	simulationState                                                                                        *PackedData
@@ -28,13 +34,19 @@ type GPUEroder struct {
 	nextVelocityColorBuffer                                                                                uint32 // vX, vY
 	nextHeightColorBuffer                                                                                  uint32 // landHeight, waterHeight, sediment
 	waterPassProgram, outflowProgram, waterHeightProgram, velocityProgram, erosionProgram, sedimentProgram uint32
+	uniforms           																					   ProgramMap //program -> name -> handle
+	state                                       														   *State
 }
 
-func NewGPUEroder(heightmap generators.TerrainGenerator) *GPUEroder {
+func NewGPUEroder(heightmap generators.TerrainGenerator, state *State) *GPUEroder {
 	var e = new(GPUEroder)
 	e.heightmap = heightmap
+	e.state = state
+	e.uniforms = make(ProgramMap)
 	e.packData()
 	e.loadComputeShaders()
+	e.setupUniforms()
+	e.updateUniforms()
 	e.setupTextures()
 	e.setupFramebuffers()
 	return e
@@ -156,9 +168,9 @@ func (e *GPUEroder) setupTextures() {
 
 	/**
 	 * Texture stored state:
-	 * 	- Vel X
+	 * 	- Vel Magnitude
+	 *  - Vel X
 	 *  - Vel Y
-	 *  - nil
 	 *  - nil
 	 */
 	e.nextVelocityColorBuffer = createStateTexture(width, height, gl.Ptr(e.simulationState.velocityData))
@@ -256,6 +268,8 @@ func (e *GPUEroder) copyNextToCurrent() {
  * Executes a single compute shader pipeline pass on the simulation state textures.
  */
 func (e *GPUEroder) Pass() {
+	e.updateUniforms()
+	
 	// Copy "next" textures into "current"
 	width, height := e.heightmap.Dimensions()
 
@@ -286,10 +300,12 @@ func (e *GPUEroder) Pass() {
 	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+	// Decide whether we're deposition or eroding sediment this timestep.
 	gl.UseProgram(e.erosionProgram)
 	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+	// Drive the advection of sediment.
 	gl.UseProgram(e.sedimentProgram)
 	gl.DispatchCompute(subW, subH, 1)
 	gl.MemoryBarrier(gl.SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -329,4 +345,77 @@ func (e *GPUEroder) loadComputeShaders() {
 	if err != nil {
 		panic(err)
 	}
+
+	e.uniforms[e.waterPassProgram] = make(UniformMap)
+	e.uniforms[e.outflowProgram] = make(UniformMap)
+	e.uniforms[e.waterHeightProgram] = make(UniformMap)
+	e.uniforms[e.velocityProgram] = make(UniformMap)
+	e.uniforms[e.erosionProgram] = make(UniformMap)
+	e.uniforms[e.sedimentProgram] = make(UniformMap)
+}
+
+func (e *GPUEroder) initUniformsForProgram(program uint32) {
+	gl.UseProgram(program)
+
+	isRainingUniform := gl.GetUniformLocation(program, gl.Str("isRaining\x00"))
+	waterIncrementRate := gl.GetUniformLocation(program, gl.Str("waterIncrementRate\x00"))
+	gravitationalConstant := gl.GetUniformLocation(program, gl.Str("gravitationalConstant\x00"))
+	pipeCrossSectionalArea := gl.GetUniformLocation(program, gl.Str("pipeCrossSectionalArea\x00"))
+	evaporationRate := gl.GetUniformLocation(program, gl.Str("evaporationRate\x00"))
+	deltaTime := gl.GetUniformLocation(program, gl.Str("deltaTime\x00"))
+	sedimentCarryCapacity := gl.GetUniformLocation(program, gl.Str("sedimentCarryCapacity\x00"))
+	soilSuspensionRate := gl.GetUniformLocation(program, gl.Str("soilSuspensionRate\x00"))
+	soilDepositionRate := gl.GetUniformLocation(program, gl.Str("soilDepositionRate\x00"))
+	maximumErodeDepth := gl.GetUniformLocation(program, gl.Str("maximumErodeDepth\x00"))
+
+	e.uniforms[program]["isRaining"] = isRainingUniform
+	e.uniforms[program]["waterIncrementRate"] = waterIncrementRate
+	e.uniforms[program]["gravitationalConstant"] = gravitationalConstant
+	e.uniforms[program]["pipeCrossSectionalArea"] = pipeCrossSectionalArea
+	e.uniforms[program]["evaporationRate"] = evaporationRate
+	e.uniforms[program]["deltaTime"] = deltaTime
+	e.uniforms[program]["sedimentCarryCapacity"] = sedimentCarryCapacity
+	e.uniforms[program]["soilSuspensionRate"] = soilSuspensionRate
+	e.uniforms[program]["soilDepositionRate"] = soilDepositionRate
+	e.uniforms[program]["maximumErodeDepth"] = maximumErodeDepth
+}
+
+func (e *GPUEroder) updateUniformsForProgram(program uint32) {
+	state := e.state
+	
+	gl.UseProgram(program)
+
+	var rainingVal int32 = 0
+	if state.IsRaining {
+		rainingVal = 1
+	}
+
+	gl.Uniform1i(e.uniforms[program]["isRaining"], rainingVal)
+	gl.Uniform1fv(e.uniforms[program]["waterIncrementRate"], 1, &state.WaterIncrementRate)
+	gl.Uniform1fv(e.uniforms[program]["gravitationalConstant"], 1, &state.GravitationalConstant)
+	gl.Uniform1fv(e.uniforms[program]["pipeCrossSectionalArea"], 1, &state.PipeCrossSectionalArea)
+	gl.Uniform1fv(e.uniforms[program]["evaporationRate"], 1, &state.EvaporationRate)
+	gl.Uniform1fv(e.uniforms[program]["deltaTime"], 1, &state.TimeStep)
+	gl.Uniform1fv(e.uniforms[program]["sedimentCarryCapacity"], 1, &state.SedimentCarryCapacity)
+	gl.Uniform1fv(e.uniforms[program]["soilSuspensionRate"], 1, &state.SoilSuspensionRate)
+	gl.Uniform1fv(e.uniforms[program]["soilDepositionRate"], 1, &state.SoilDepositionRate)
+	gl.Uniform1fv(e.uniforms[program]["maximumErodeDepth"], 1, &state.MaximalErodeDepth)
+}
+
+func (e *GPUEroder) updateUniforms() {
+	e.updateUniformsForProgram(e.waterPassProgram)
+	e.updateUniformsForProgram(e.outflowProgram)
+	e.updateUniformsForProgram(e.waterHeightProgram)
+	e.updateUniformsForProgram(e.velocityProgram)
+	e.updateUniformsForProgram(e.erosionProgram)
+	e.updateUniformsForProgram(e.sedimentProgram)
+}
+
+func (e *GPUEroder) setupUniforms() {
+	e.initUniformsForProgram(e.waterPassProgram)
+	e.initUniformsForProgram(e.outflowProgram)
+	e.initUniformsForProgram(e.waterHeightProgram)
+	e.initUniformsForProgram(e.velocityProgram)
+	e.initUniformsForProgram(e.erosionProgram)
+	e.initUniformsForProgram(e.sedimentProgram)
 }
