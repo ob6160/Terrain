@@ -43,13 +43,17 @@ func NewGPUEroder(heightmap generators.TerrainGenerator, state *State) *GPUErode
 	e.heightmap = heightmap
 	e.state = state
 	e.uniforms = make(ProgramMap)
+	e.Reset()
+	return e
+}
+
+func (e *GPUEroder) Reset() {
 	e.packData()
 	e.loadComputeShaders()
 	e.setupUniforms()
 	e.updateUniforms()
 	e.setupTextures()
 	e.setupFramebuffers()
-	return e
 }
 
 func (e *GPUEroder) BindOutflowDrawFramebuffer() {
@@ -107,7 +111,7 @@ func (e *GPUEroder) packData() {
 			packedData.heightData[location+1] = 0.0            // water height val
 			packedData.heightData[location+2] = 0.0            // sediment val
 			//if x < 500 && y < 500 && x > 490 && y > 490 {
-				packedData.heightData[location+3] = rand.Float32()*0.1 // rain rate
+				packedData.heightData[location+3] = rand.Float32()*0.01 // rain rate
 			//}
 
 			packedData.outflowData[location+0] = 0.0           // left outflow
@@ -346,6 +350,7 @@ func (e *GPUEroder) loadComputeShaders() {
 		panic(err)
 	}
 
+	// Init uniform map
 	e.uniforms[e.waterPassProgram] = make(UniformMap)
 	e.uniforms[e.outflowProgram] = make(UniformMap)
 	e.uniforms[e.waterHeightProgram] = make(UniformMap)
@@ -365,7 +370,7 @@ func (e *GPUEroder) initUniformsForProgram(program uint32) {
 	deltaTime := gl.GetUniformLocation(program, gl.Str("deltaTime\x00"))
 	sedimentCarryCapacity := gl.GetUniformLocation(program, gl.Str("sedimentCarryCapacity\x00"))
 	soilSuspensionRate := gl.GetUniformLocation(program, gl.Str("soilSuspensionRate\x00"))
-	soilDepositionRate := gl.GetUniformLocation(program, gl.Str("soilDepositionRate\x00"))
+	soilDepositionRate := gl.GetUniformLocation(program, gl.Str("sedimentDepositionRate\x00"))
 	maximumErodeDepth := gl.GetUniformLocation(program, gl.Str("maximumErodeDepth\x00"))
 
 	e.uniforms[program]["isRaining"] = isRainingUniform

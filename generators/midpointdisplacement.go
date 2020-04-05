@@ -91,7 +91,6 @@ func (m *MidpointDisplacement) displace(tl, tr, bl, br int, spread, reduce float
 	rightMid = utils.Midpoint(tr, br)
 	bottomMid = utils.Midpoint(bl, br)
 	centre = utils.Midpoint(leftMid, rightMid)
-
 	if m.heightmap[topMid] == 0 {
 		avg := utils.Average(m.heightmap[tl], m.heightmap[tr])
 		m.heightmap[topMid] = utils.Jitter(avg, spread)
@@ -112,7 +111,6 @@ func (m *MidpointDisplacement) displace(tl, tr, bl, br int, spread, reduce float
 		avg := utils.Average(m.heightmap[topMid], m.heightmap[leftMid], m.heightmap[rightMid], m.heightmap[bottomMid])
 		m.heightmap[centre] = utils.Jitter(avg, spread)
 	}
-
 	next := spread * reduce
 	m.displace(tl, topMid, leftMid, centre, next, reduce)
 	m.displace(topMid, tr, centre, rightMid, next, reduce)

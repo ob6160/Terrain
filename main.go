@@ -35,7 +35,7 @@ type State struct {
 	TerrainHitPos      mgl32.Vec3
 	Model              mgl32.Mat4
 	MousePos           mgl32.Vec4
-	Angle, Height, FOV float32
+	Angle, Height, FOV, LightingDir float32
 	Plane              *core.Plane
 	MidpointGen        *generators.MidpointDisplacement
 	TerrainEroder      *erosion.CPUEroder
@@ -81,6 +81,9 @@ func setupUniforms(state *State) {
 	heightUniform := gl.GetUniformLocation(program, gl.Str("height\x00"))
 	gl.Uniform1fv(heightUniform, 1, &state.Height)
 
+	lightingDirUniform := gl.GetUniformLocation(program, gl.Str("lightingDir\x00"))
+	gl.Uniform1fv(lightingDirUniform, 1, &state.LightingDir)
+
 	waterHeightUniform := gl.GetUniformLocation(program, gl.Str("tboWaterHeight\x00"))
 	gl.Uniform1i(waterHeightUniform, 0)
 
@@ -95,6 +98,7 @@ func setupUniforms(state *State) {
 	state.Uniforms["terrainUniform"] = terrainHitPos
 	state.Uniforms["waterHeightUniform"] = waterHeightUniform
 	state.Uniforms["heightmapUniform"] = heightmapUniform
+	state.Uniforms["lightingDirUniform"] = lightingDirUniform
 }
 
 func main() {
@@ -120,9 +124,9 @@ func main() {
 		EvaporationRate:        0.15,
 		TimeStep:               0.02,
 		IsRaining:              true,
-		SedimentCarryCapacity:  2.0,
-		SoilDepositionRate:     0.05,
-		SoilSuspensionRate:     0.04,
+		SedimentCarryCapacity:  0.2,
+		SoilDepositionRate:     0.2,
+		SoilSuspensionRate:     0.2,
 		MaximalErodeDepth:      0.001,
 	}
 	var terrainEroder = erosion.NewCPUEroder(midpointDisp, &erosionState)
@@ -142,6 +146,7 @@ func main() {
 		Angle:           0,
 		Height:          0.0,
 		FOV:             50.0,
+		LightingDir:     3.0,
 		Plane:           testPlane,
 		MidpointGen:     midpointDisp,
 		TerrainEroder:   terrainEroder,
@@ -204,6 +209,12 @@ func updateUniforms(state *State) {
 	gl.UniformMatrix4fv(state.Uniforms["cameraUniform"], 1, false, &state.Camera[0])
 	gl.Uniform1fv(state.Uniforms["heightUniform"], 1, &state.Height)
 	gl.Uniform1fv(state.Uniforms["angleUniform"], 1, &state.Angle)
+	gl.Uniform1fv(state.Uniforms["lightingDirUniform"], 1, &state.LightingDir)
+	
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, state.GPUEroder.HeightDisplayTexture())
+	gl.Uniform1i(state.Uniforms["heightmapUniform"], 1)
+	
 }
 
 
@@ -253,6 +264,7 @@ func (coreState *State) renderUI(guiState *gui.State) {
 				imgui.SliderFloat("FOV", &coreState.FOV, 0.0, 100.0)
 				imgui.SameLine()
 				imgui.SliderFloat("Angle", &coreState.Angle, 0.0, math.Pi*2.0)
+				imgui.SliderFloat("Lighting Direction", &coreState.LightingDir, 0.01, 100.0)
 				imgui.PopItemWidth()
 			}
 			imgui.TreePop()
@@ -262,14 +274,19 @@ func (coreState *State) renderUI(guiState *gui.State) {
 			imgui.PushItemWidth(80)
 			{
 				imgui.SliderFloat("Height", &coreState.Height, 0.0, 100.0)
-				imgui.SliderFloat("Spread", &coreState.Spread, 0.0, 10.0)
-				imgui.SliderFloat("Reduce", &coreState.Reduce, 0.0, 10.0)
+				imgui.SliderFloat("Spread", &coreState.Spread, 0.0, 1.0)
+				imgui.SliderFloat("Reduce", &coreState.Reduce, 0.0, 1.0)
 				imgui.PopItemWidth()
 			}
 			if imgui.Button("Regenerate Terrain") {
 				coreState.MidpointGen.Generate(coreState.Spread, coreState.Reduce)
+
+				// Reset CPU sim
 				coreState.TerrainEroder.Reset()
 				coreState.TerrainEroder.Initialise()
+
+				// Reset GPU sim
+				coreState.GPUEroder.Reset()
 			}
 			imgui.TreePop()
 		}
@@ -297,9 +314,10 @@ func (coreState *State) renderUI(guiState *gui.State) {
 			if imgui.TreeNodeV("Settings", treeNodeFlags) {
 				imgui.PushItemWidth(80)
 				{
-					imgui.SliderFloat("Delta Time", &coreState.ErosionState.TimeStep, 0.001, 0.05)
+
+					imgui.SliderFloat("Delta Time", &coreState.ErosionState.TimeStep, 0.0, 0.05)
 					imgui.SliderFloat("Evaporation Rate", &coreState.ErosionState.EvaporationRate, 0.001, 1.0)
-					imgui.SliderFloat("Water Increment Rate", &coreState.ErosionState.WaterIncrementRate, 0.001, 0.01)
+					imgui.SliderFloat("Water Increment Rate", &coreState.ErosionState.WaterIncrementRate, 0.001, 0.5)
 					imgui.PopItemWidth()
 				}
 				imgui.TreePop()
@@ -308,6 +326,19 @@ func (coreState *State) renderUI(guiState *gui.State) {
 		}
 	}
 	imgui.End()
+
+	if imgui.BeginV("Simulation Settings", &guiState.TerrainWindowOpen, windowFlags) {
+		erosionState := coreState.ErosionState
+		imgui.SliderFloat("Carry Capacity", &erosionState.SedimentCarryCapacity, 0.0, 2.0)
+		imgui.SliderFloat("Sediment Suspension Rate", &erosionState.SoilSuspensionRate, 0.0, 2.0)
+		imgui.SliderFloat("Sediment Deposition Rate", &erosionState.SoilDepositionRate, 0.0, 2.0)
+		imgui.SliderFloat("Minimum Tilt Angle", &erosionState.MaximalErodeDepth, 0.0, 2.0)
+		imgui.SliderFloat("Gravity", &erosionState.GravitationalConstant, 0.0, 10.0)
+		imgui.SliderFloat("Pipe Area", &erosionState.PipeCrossSectionalArea, 0.0, 40.0)
+
+	}
+	imgui.End()
+
 	imgui.EndFrame()
 	imgui.Render()
 }

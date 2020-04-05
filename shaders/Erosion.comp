@@ -10,9 +10,10 @@ layout (rgba32f, binding = 3) readonly uniform highp image2D currentHeightTex;
 layout (rgba32f, binding = 4) readonly uniform highp image2D currentOutflowTex;
 layout (rgba32f, binding = 5) readonly uniform highp image2D currentVelocityTex;
 
-const float sedimentCapacity = 0.2;
-const float soilSuspensionRate = 0.2;
-const float sedimentDepositionRate = 0.2;
+uniform float sedimentCarryCapacity;
+uniform float soilSuspensionRate;
+uniform float sedimentDepositionRate;
+uniform float maximumErodeDepth;
 uniform float deltaTime;
 
 void main() {
@@ -40,10 +41,10 @@ void main() {
 
     // Get total terrain height (water + land column)
     float centreCurrentTerrainHeight = currentHeightTexel.r;
-    float leftCurrentTerrainHeight = leftCurrentHeightTexel.r ;
-    float rightCurrentTerrainHeight = rightCurrentHeightTexel.r;
-    float topCurrentTerrainHeight = topCurrentHeightTexel.r;
-    float bottomCurrentTerrainHeight = bottomCurrentHeightTexel.r;
+    float leftCurrentTerrainHeight = leftCurrentHeightTexel.r - leftCurrentHeightTexel.g;
+    float rightCurrentTerrainHeight = rightCurrentHeightTexel.r + rightCurrentHeightTexel.g;
+    float topCurrentTerrainHeight = topCurrentHeightTexel.r - topCurrentHeightTexel.g;
+    float bottomCurrentTerrainHeight = bottomCurrentHeightTexel.r + bottomCurrentHeightTexel.g;
 
     // Calculating the tilt angle
     // Based on:
@@ -51,14 +52,14 @@ void main() {
     float dx = (rightCurrentTerrainHeight - leftCurrentTerrainHeight) / 2.0;
     float dy = (bottomCurrentTerrainHeight - topCurrentTerrainHeight) / 2.0;
     float changes = dx * dx + dy * dy;
-    float tiltAngle = sqrt(1.0 - sqrt(changes) / sqrt(1.0 + changes));
+    float tiltAngle = sqrt(1.0 / (1.0 + changes));
 
     // Get the velocity magnitude
     float velocityMagnitude = nextVelocityTexel.r;
 
     // Calculate the water sediment carry capacity (how much sediment can this grid cell carry?)
     // Notation: {C}
-    float currentSedimentCarryCapacity = sedimentCapacity * min(tiltAngle, 0.05) * velocityMagnitude;
+    float currentSedimentCarryCapacity = sedimentCarryCapacity * min(tiltAngle, maximumErodeDepth) * velocityMagnitude;
 
 
     // Caclulate the sediment carry capacity for the current grid point.

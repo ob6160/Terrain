@@ -67,8 +67,5 @@ void main() {
     float velocityMagnitude = length(velocity);
 
     vec4 newVel = vec4(velocityMagnitude, velX, velY, 0.0);
-
-    imageStore(nextHeightTex, storePos, nextHeightTexel);
-    imageStore(nextOutflowTex, storePos, nextOutflowTexel);
     imageStore(nextVelocityTex, storePos, newVel);
 }

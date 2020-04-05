@@ -26,7 +26,7 @@ void main() {
 
     ivec2 vel = ivec2(int(nextVelocityTexel.g * deltaTime), int(nextVelocityTexel.b * deltaTime));
     ivec2 sum = storePos - vel;
-    vec4 advectedLocationHeight = imageLoad(currentHeightTex, sum);
+    vec4 advectedLocationHeight = imageLoad(nextHeightTex, sum);
 
     float nextSedimentVal = advectedLocationHeight.b;
 
