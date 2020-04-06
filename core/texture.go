@@ -32,7 +32,7 @@ func NewTexture(width, height int, data unsafe.Pointer) uint32 {
 		int32(height),
 		0,
 		gl.RGBA,
-		gl.UNSIGNED_BYTE,
+		gl.FLOAT,
 		data)
 	return texture
 }
