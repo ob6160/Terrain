@@ -40,8 +40,8 @@ type State struct {
 	MidpointGen        *generators.MidpointDisplacement
 	TerrainEroder      *erosion.CPUEroder
 	GPUEroder          *erosion.GPUEroder
-	Spread, Reduce     float32
 	ErosionState       *erosion.State
+	Spread, Reduce     float32
 	//UI
 	DebugField      []byte
 	DebugFieldLen   int32
@@ -146,7 +146,7 @@ func main() {
 		Angle:           0,
 		Height:          0.0,
 		FOV:             50.0,
-		LightingDir:     3.0,
+		LightingDir:     0.1,
 		Plane:           testPlane,
 		MidpointGen:     midpointDisp,
 		TerrainEroder:   terrainEroder,
@@ -264,7 +264,7 @@ func (coreState *State) renderUI(guiState *gui.State) {
 				imgui.SliderFloat("FOV", &coreState.FOV, 0.0, 100.0)
 				imgui.SameLine()
 				imgui.SliderFloat("Angle", &coreState.Angle, 0.0, math.Pi*2.0)
-				imgui.SliderFloat("Lighting Direction", &coreState.LightingDir, 0.01, 100.0)
+				imgui.SliderFloat("Lighting Direction", &coreState.LightingDir, 0.01, 1.0)
 				imgui.PopItemWidth()
 			}
 			imgui.TreePop()

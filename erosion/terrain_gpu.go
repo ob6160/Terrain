@@ -145,7 +145,7 @@ func (e *GPUEroder) setupTextures() {
 	// ===========================
 
 	// State Textures
-	// These are used to write to from the compute shader (they represent the new state of the simulation).
+	// These are used to write to and from the compute shader (they represent the new state of the simulation).
 	// We eventually bind each texture as a colour attachment to a FBO
 
 	// Next state textures (written to by the Compute Shader).
@@ -197,7 +197,6 @@ func createStateTexture(width, height int, data unsafe.Pointer) uint32 {
 	var texture uint32
 	gl.GenTextures(1, &texture)
 	gl.BindTexture(gl.TEXTURE_2D, texture)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(width), int32(height), 0, gl.RGBA, gl.FLOAT, data)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 	gl.TextureParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -234,7 +233,6 @@ func (e *GPUEroder) setupFramebuffers() {
 	gl.GenFramebuffers(1, &e.nextFrameBufferVelocity)
 
 	// Attach each state to an associated read only framebuffer for bulk copy operation.
-
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, e.nextFrameBufferHeight)
 	gl.FramebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.nextHeightColorBuffer, 0)
 

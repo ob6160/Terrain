@@ -20,11 +20,7 @@ type LayerData struct {
 	tiltMap           []float32
 }
 
-type State struct {
-	IsRaining                                                                                    bool
-	WaterIncrementRate, GravitationalConstant, PipeCrossSectionalArea, EvaporationRate, TimeStep float32
-	SedimentCarryCapacity, SoilSuspensionRate, SoilDepositionRate, MaximalErodeDepth             float32
-}
+
 
 type CPUEroder struct {
 	initial                                     *LayerData
