@@ -1,5 +1,10 @@
 package renderers
 
+/**
+ * Based upon code written by Christian Hans
+ * https://github.com/inkyblackness/imgui-go-examples/blob/master/internal/renderers/OpenGL3.go
+ */
+
 import (
 	"fmt"
 	"github.com/go-gl/gl/v4.3-core/gl"

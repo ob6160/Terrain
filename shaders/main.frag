@@ -24,12 +24,15 @@ void main() {
     height_colours[2] = vec3(1.0,1.0,1.0);
 
     vec3 terrainColour = vec3(0.0, 1.0, 0.0);
-    float height = texture2D(tboHeightmap, fragTexCoord).r * 2.0;
+    vec3 waterColour = vec3(0.0, 0.0, 1.0);
+    vec4 hmSample = texture2D(tboHeightmap, fragTexCoord);
+    float height = hmSample.r * 2.0;
     if(height < 1.0) {
         terrainColour = mix(height_colours[1], height_colours[0], 2.0 - height);
     } else {
         terrainColour = mix(height_colours[2], height_colours[1], 2.0 - height);
     }
+    terrainColour = mix(terrainColour, waterColour, hmSample.g * 10.0);
 
     vec3 offset = vec3(-1.0/512.0, 0.0, 1.0/512.0);
 
